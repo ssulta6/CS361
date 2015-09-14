@@ -90,15 +90,6 @@ int main(int argc, char *argv[]) {
     tokens[num_tokens] = (char *)0;
 
 
-    // DEBUG
-    // for (i = 0; i < num_tokens; i++) {
-    //     // TODO valgrind gives error on tokens[i] access
-    //     printf("%d: %s\n", i, tokens[i]);
-    // }
-
-    // DEBUG
-    // printf("number of tokens: %d\n", num_tokens);
-
     // fork a child and exec() command
     pid_t pid = fork();
 
@@ -108,8 +99,47 @@ int main(int argc, char *argv[]) {
         exit(-1);
     // if this is child process, call exec()
     } else if (pid == 0) {
-        execv(tokens[0], tokens);
-        // printf("Hello, World from child!\n");
+
+        // check all tokens for redirection symbols, don't check last token.
+        for (i = 1; i < num_tokens - 1; i++) {
+            // output redirection with appending
+            if (strcmp(tokens[i], ">>") == 0) {
+                const char *filename = tokens[i + 1];
+                printf("Switching stdout using freopen\n");
+                freopen(filename, "a", stdout);
+
+                break;
+            // output redirection without appending
+            } else if (strcmp(tokens[i], ">") == 0) {
+                const char *filename = tokens[i + 1];
+                printf("Switching stdout using freopen\n");
+                freopen(filename, "a", stdout);
+
+                break;
+            // input redirection
+            } else if (strcmp(tokens[i], "<") == 0) {
+
+                break;
+            }
+        }
+
+        // clean the tokens to exclude or remove the redirection arguments and whatever is after them
+        // note: i is the index to redirection token. The extra one element is for last NULL element for execv()
+        int num_clean_tokens = i+1;
+        char **clean_tokens = malloc(sizeof(char *) * num_clean_tokens);
+        int count;
+        // make shallow copy of clean tokens (no need for deep copy)
+        for (count = 0; count < i; count++)
+            clean_tokens[count] = tokens[count];
+        // fill up last element with NULL char (for execv)
+        clean_tokens[i] = (char *)0;
+
+        execv(clean_tokens[0], clean_tokens);
+
+        free(clean_tokens);
+
+        // need to kill child when done
+        exit(0);
 
     // if parent, wait for child to finish
     } else {
