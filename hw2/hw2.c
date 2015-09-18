@@ -63,127 +63,127 @@ int main(int argc, char *argv[]) {
     signal(SIGTSTP, signal_handler);
 
     while(1) {
-    // display prompt
-    printf("bashsh $ ");
+        // display prompt
+        printf("bashsh $ ");
 
 
-    // create a char pointer to hold in command and arguments
-    char input[100];
+        // create a char pointer to hold in command and arguments
+        char input[100];
 
-    // read in line of input
-    fgets(input, 100, stdin);
-    char input_copy[100];
-    strcpy(input_copy, input);
+        // read in line of input
+        fgets(input, 100, stdin);
+        char input_copy[100];
+        strcpy(input_copy, input);
 
-    // remove newline char
-    char *newline_char_ptr = strchr(input, '\n');
-    *newline_char_ptr = ' ';
+        // remove newline char
+        char *newline_char_ptr = strchr(input, '\n');
+        *newline_char_ptr = ' ';
 
-    // count number of tokens
-    int num_tokens = get_token_count(input_copy);
+        // count number of tokens
+        int num_tokens = get_token_count(input_copy);
 
-    // create array of char pointers to store tokens, one extra char pointer at end for execv()
-    char * current_token;
-    char **tokens = (char **)malloc(sizeof(char *) * (num_tokens + 1));
+        // create array of char pointers to store tokens, one extra char pointer at end for execv()
+        char * current_token;
+        char **tokens = (char **)malloc(sizeof(char *) * (num_tokens + 1));
 
 
-    // parse the input and fill up the char pointers with the tokens
-    current_token = strtok(input, " ");
-    int i;
-    for (i = 0; i < num_tokens; i++) {
-        // create space for new token and copy it, need one more char for NULL terminator
-        tokens[i] = (char *)malloc(sizeof(char) * (strlen(current_token) + 1));
-        strcpy(tokens[i], current_token);
+        // parse the input and fill up the char pointers with the tokens
+        current_token = strtok(input, " ");
+        int i;
+        for (i = 0; i < num_tokens; i++) {
+            // create space for new token and copy it, need one more char for NULL terminator
+            tokens[i] = (char *)malloc(sizeof(char) * (strlen(current_token) + 1));
+            strcpy(tokens[i], current_token);
 
-        // get next token
-        current_token = strtok(NULL, " ");
-    }
-
-    // fill up last token as NULL pointer (for execv())
-    tokens[num_tokens] = (char *)0;
-
-    if (strcmp(tokens[0], "exit") == 0) {
-        printf("Exiting...\n");
-        // free memory that held previous command
-        for (i = 0; i < num_tokens + 1; i++)
-            free(tokens[i]);
-        free(tokens);
-        exit(0);
-    }
-
-    // fork a child and exec() command
-    pid_t pid = fork();
-
-    // if failed fork
-    if (pid < 0) {
-        printf("Failed to fork process!\n");
-        exit(-1);
-    // if this is child process, call exec()
-    } else if (pid == 0) {
-
-        // check all tokens for redirection symbols, don't check last token.
-        for (i = 1; i < num_tokens - 1; i++) {
-            const char *filename = tokens[i + 1];
-            // output redirection with appending
-            if (strcmp(tokens[i], ">>") == 0) {
-                printf("Switching stdout using freopen\n");
-                freopen(filename, "a", stdout);
-
-                break;
-            // output redirection without appending
-            } else if (strcmp(tokens[i], ">") == 0) {
-                printf("Switching stdout using freopen\n");
-                freopen(filename, "a", stdout);
-
-                break;
-            // input redirection
-            } else if (strcmp(tokens[i], "<") == 0) {
-                printf("Switching stdin using freopen\n");
-                freopen(filename, "r", stdin);
-                break;
-            }
+            // get next token
+            current_token = strtok(NULL, " ");
         }
 
-        // clean the tokens to exclude or remove the redirection arguments and whatever is after them
-        // note: i is the index to redirection token. The extra one element is for last NULL element for execv()
-        int num_clean_tokens = i+1;
-        char **clean_tokens = (char **)malloc(sizeof(char *) * num_clean_tokens);
-        int count;
-        // make shallow copy of clean tokens (no need for deep copy)
-        for (count = 0; count < i; count++)
-            clean_tokens[count] = tokens[count];
-        // fill up last element with NULL char (for execv)
-        clean_tokens[i] = (char *)0;
+        // fill up last token as NULL pointer (for execv())
+        tokens[num_tokens] = (char *)0;
 
-        execv(clean_tokens[0], clean_tokens);
+        if (strcmp(tokens[0], "exit") == 0) {
+            printf("Exiting...\n");
+            // free memory that held previous command
+            for (i = 0; i < num_tokens + 1; i++)
+                free(tokens[i]);
+            free(tokens);
+            exit(0);
+        }
 
-        // free all used up memory before killing child (yourself)
-        for (i = 0; i < num_tokens + 1; i++)
+        // fork a child and exec() command
+        pid_t pid = fork();
+
+        // if failed fork
+        if (pid < 0) {
+            printf("Failed to fork process!\n");
+            exit(-1);
+        // if this is child process, call exec()
+        } else if (pid == 0) {
+
+            // check all tokens for redirection symbols, don't check last token.
+            for (i = 1; i < num_tokens - 1; i++) {
+                const char *filename = tokens[i + 1];
+                // output redirection with appending
+                if (strcmp(tokens[i], ">>") == 0) {
+                    printf("Switching stdout using freopen\n");
+                    freopen(filename, "a", stdout);
+
+                    break;
+                // output redirection without appending
+                } else if (strcmp(tokens[i], ">") == 0) {
+                    printf("Switching stdout using freopen\n");
+                    freopen(filename, "a", stdout);
+
+                    break;
+                // input redirection
+                } else if (strcmp(tokens[i], "<") == 0) {
+                    printf("Switching stdin using freopen\n");
+                    freopen(filename, "r", stdin);
+                    break;
+                }
+            }
+
+            // clean the tokens to exclude or remove the redirection arguments and whatever is after them
+            // note: i is the index to redirection token. The extra one element is for last NULL element for execv()
+            int num_clean_tokens = i+1;
+            char **clean_tokens = (char **)malloc(sizeof(char *) * num_clean_tokens);
+            int count;
+            // make shallow copy of clean tokens (no need for deep copy)
+            for (count = 0; count < i; count++)
+                clean_tokens[count] = tokens[count];
+            // fill up last element with NULL char (for execv)
+            clean_tokens[i] = (char *)0;
+
+            execv(clean_tokens[0], clean_tokens);
+
+            // free all used up memory before killing child (yourself)
+            for (i = 0; i < num_tokens + 1; i++)
+                free(tokens[i]);
+            free(tokens);
+            free(clean_tokens);
+
+            // need to kill child when done
+            exit(0);
+
+        // if parent, wait for child to finish
+        } else {
+            printf("Child PID: %d\n", pid);
+            int status;
+            wait(&status);
+
+            // check if child exited normally
+            if (WIFEXITED(status))
+                printf("Child PID: %d exited normally with status %d\n", pid, WEXITSTATUS(status));
+            // check if child was signaled to terminate
+            else if (WIFSIGNALED(status))
+                printf("Child PID: %d was terminated by a signal with status %d\n", pid, WTERMSIG(status));
+        }
+
+        // free memory that held previous command
+        for (i = 0; i < num_tokens; i++)
             free(tokens[i]);
         free(tokens);
-        free(clean_tokens);
-
-        // need to kill child when done
-        exit(0);
-
-    // if parent, wait for child to finish
-    } else {
-        printf("Child PID: %d\n", pid);
-        int status;
-        wait(&status);
-
-        // check if child exited normally
-        if (WIFEXITED(status))
-            printf("Child PID: %d exited normally with status %d\n", pid, WEXITSTATUS(status));
-        // check if child was signaled to terminate
-        else if (WIFSIGNALED(status))
-            printf("Child PID: %d was terminated by a signal with status %d\n", pid, WTERMSIG(status));
-    }
-
-    // free memory that held previous command
-    for (i = 0; i < num_tokens; i++)
-        free(tokens[i]);
-    free(tokens);
 
     } // end while
     return 0;
