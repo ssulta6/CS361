@@ -82,17 +82,15 @@ int main(int argc, char *argv[]) {
 
     // create array of char pointers to store tokens, one extra char pointer at end for execv()
     char * current_token;
-    char **tokens = (char **)malloc(sizeof(char *) * num_tokens + 1);
+    char **tokens = (char **)malloc(sizeof(char *) * (num_tokens + 1));
 
 
     // parse the input and fill up the char pointers with the tokens
     current_token = strtok(input, " ");
     int i;
     for (i = 0; i < num_tokens; i++) {
-        // printf("%d: %s\n", i, current_token);  // DEBUG
-        // create space for new token and copy it
-        tokens[i] = (char *)malloc(sizeof(char) * strlen(current_token));
-        // TODO valgrind gives error on tokens[i] access
+        // create space for new token and copy it, need one more char for NULL terminator
+        tokens[i] = (char *)malloc(sizeof(char) * (strlen(current_token) + 1));
         strcpy(tokens[i], current_token);
 
         // get next token
@@ -104,6 +102,10 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(tokens[0], "exit") == 0) {
         printf("Exiting...\n");
+        // free memory that held previous command
+        for (i = 0; i < num_tokens + 1; i++)
+            free(tokens[i]);
+        free(tokens);
         exit(0);
     }
 
@@ -153,6 +155,10 @@ int main(int argc, char *argv[]) {
 
         execv(clean_tokens[0], clean_tokens);
 
+        // free all used up memory before killing child (yourself)
+        for (i = 0; i < num_tokens + 1; i++)
+            free(tokens[i]);
+        free(tokens);
         free(clean_tokens);
 
         // need to kill child when done
@@ -177,8 +183,6 @@ int main(int argc, char *argv[]) {
     for (i = 0; i < num_tokens; i++)
         free(tokens[i]);
     free(tokens);
-
-    // TODO report result, repeat above
 
     } // end while
     return 0;
