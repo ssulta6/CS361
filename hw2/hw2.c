@@ -47,9 +47,11 @@ int get_token_count(char * input) {
 
 void signal_handler(int signo) {
     if (signo == SIGINT)
-        printf("received SIGINT\n");
+        printf("\nreceived SIGINT\n\nbashsh $ ");
     else if (signo == SIGTSTP)
-        printf("received SIGTSTP\n");
+        printf("\nreceived SIGTSTP\n\nbashsh $ ");
+    
+    fflush(stdout);
 }
 
 int main(int argc, char *argv[]) {
@@ -167,7 +169,6 @@ int main(int argc, char *argv[]) {
     // if parent, wait for child to finish
     } else {
         printf("Child PID: %d\n", pid);
-        // printf("Hello, World from parent!\n");
         int status;
         wait(&status);
 
