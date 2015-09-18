@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 /*
     CS 361 HW2 instructions:
@@ -44,10 +45,20 @@ int get_token_count(char * input) {
     return count;
 }
 
+void signal_handler(int signo) {
+    if (signo == SIGINT)
+        printf("received SIGINT\n");
+    else if (signo == SIGTSTP)
+        printf("received SIGTSTP\n");
+}
 
 int main(int argc, char *argv[]) {
 
     printf("Welcome to bashsh, Basheer's shell... Enter your commands:\n");
+
+    // set up signal handlers
+    signal(SIGINT, signal_handler);
+    signal(SIGTSTP, signal_handler);
 
     while(1) {
     // display prompt
@@ -72,6 +83,8 @@ int main(int argc, char *argv[]) {
     // create array of char pointers to store tokens, one extra char pointer at end for execv()
     char * current_token;
     char **tokens = (char **)malloc(sizeof(char *) * num_tokens + 1);
+
+
     // parse the input and fill up the char pointers with the tokens
     current_token = strtok(input, " ");
     int i;
@@ -89,6 +102,10 @@ int main(int argc, char *argv[]) {
     // fill up last token as NULL pointer (for execv())
     tokens[num_tokens] = (char *)0;
 
+    if (strcmp(tokens[0], "exit") == 0) {
+        printf("Exiting...\n");
+        exit(0);
+    }
 
     // fork a child and exec() command
     pid_t pid = fork();
@@ -102,23 +119,23 @@ int main(int argc, char *argv[]) {
 
         // check all tokens for redirection symbols, don't check last token.
         for (i = 1; i < num_tokens - 1; i++) {
+            const char *filename = tokens[i + 1];
             // output redirection with appending
             if (strcmp(tokens[i], ">>") == 0) {
-                const char *filename = tokens[i + 1];
                 printf("Switching stdout using freopen\n");
                 freopen(filename, "a", stdout);
 
                 break;
             // output redirection without appending
             } else if (strcmp(tokens[i], ">") == 0) {
-                const char *filename = tokens[i + 1];
                 printf("Switching stdout using freopen\n");
                 freopen(filename, "a", stdout);
 
                 break;
             // input redirection
             } else if (strcmp(tokens[i], "<") == 0) {
-
+                printf("Switching stdin using freopen\n");
+                freopen(filename, "r", stdin);
                 break;
             }
         }
@@ -126,7 +143,7 @@ int main(int argc, char *argv[]) {
         // clean the tokens to exclude or remove the redirection arguments and whatever is after them
         // note: i is the index to redirection token. The extra one element is for last NULL element for execv()
         int num_clean_tokens = i+1;
-        char **clean_tokens = malloc(sizeof(char *) * num_clean_tokens);
+        char **clean_tokens = (char **)malloc(sizeof(char *) * num_clean_tokens);
         int count;
         // make shallow copy of clean tokens (no need for deep copy)
         for (count = 0; count < i; count++)
@@ -145,7 +162,15 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Child PID: %d\n", pid);
         // printf("Hello, World from parent!\n");
-        wait(NULL);
+        int status;
+        wait(&status);
+
+        // check if child exited normally
+        if (WIFEXITED(status))
+            printf("Child PID: %d exited normally with status %d\n", pid, WEXITSTATUS(status));
+        // check if child was signaled to terminate
+        else if (WIFSIGNALED(status))
+            printf("Child PID: %d was terminated by a signal with status %d\n", pid, WTERMSIG(status));
     }
 
     // free memory that held previous command
@@ -153,9 +178,9 @@ int main(int argc, char *argv[]) {
         free(tokens[i]);
     free(tokens);
 
-    // report result, repeat above
+    // TODO report result, repeat above
 
-    }
+    } // end while
     return 0;
 }
 
