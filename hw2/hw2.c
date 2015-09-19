@@ -155,15 +155,21 @@ int main(int argc, char *argv[]) {
             // fill up last element with NULL char (for execv)
             clean_tokens[i+1] = (char *)0;
 
-            execv(clean_tokens[0], clean_tokens);
+            execvp(clean_tokens[0], clean_tokens);
 
+            // exec should not return, print error if it does
+            char err[100];
+            snprintf(err, 100, "%s", clean_tokens[0]);
+            perror(err);
+
+            // all right, let's clean up before leaving this mess
             // free all used up memory before killing child (yourself)
             for (i = 0; i < num_tokens + 1; i++)
                 free(tokens[i]);
             free(tokens);
             free(clean_tokens);
 
-            // need to kill child when done
+            // need to kill child when done, leaving
             exit(0);
 
         // if parent, wait for child to finish
