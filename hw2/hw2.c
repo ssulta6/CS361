@@ -147,13 +147,13 @@ int main(int argc, char *argv[]) {
             // clean the tokens to exclude or remove the redirection arguments and whatever is after them
             // note: i is the index to redirection token. The extra one element is for last NULL element for execv()
             int num_clean_tokens = i+1;
-            char **clean_tokens = (char **)malloc(sizeof(char *) * num_clean_tokens);
+            char **clean_tokens = (char **)malloc(sizeof(char *) * (num_clean_tokens+1));
             int count;
             // make shallow copy of clean tokens (no need for deep copy)
-            for (count = 0; count < i; count++)
+            for (count = 0; count <= i; count++)
                 clean_tokens[count] = tokens[count];
             // fill up last element with NULL char (for execv)
-            clean_tokens[i] = (char *)0;
+            clean_tokens[i+1] = (char *)0;
 
             execv(clean_tokens[0], clean_tokens);
 
