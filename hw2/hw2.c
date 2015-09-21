@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
                 // output redirection without appending
                 } else if (strcmp(tokens[i], ">") == 0) {
                     printf("Switching stdout using freopen\n");
-                    freopen(filename, "a", stdout);
+                    freopen(filename, "w", stdout);
                     redirection_used = 1;
                     break;
                 // input redirection
