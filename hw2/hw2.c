@@ -86,6 +86,8 @@ int main(int argc, char *argv[]) {
         char * current_token;
         char **tokens = (char **)malloc(sizeof(char *) * (num_tokens + 1));
 
+        // set to 1 if redirection is used
+        int redirection_used = 0;
 
         // parse the input and fill up the char pointers with the tokens
         current_token = strtok(input, " ");
@@ -128,24 +130,28 @@ int main(int argc, char *argv[]) {
                 if (strcmp(tokens[i], ">>") == 0) {
                     printf("Switching stdout using freopen\n");
                     freopen(filename, "a", stdout);
-
+                    redirection_used = 1;
                     break;
                 // output redirection without appending
                 } else if (strcmp(tokens[i], ">") == 0) {
                     printf("Switching stdout using freopen\n");
                     freopen(filename, "a", stdout);
-
+                    redirection_used = 1;
                     break;
                 // input redirection
                 } else if (strcmp(tokens[i], "<") == 0) {
                     printf("Switching stdin using freopen\n");
                     freopen(filename, "r", stdin);
+                    redirection_used = 1;
                     break;
                 }
             }
 
             // clean the tokens to exclude or remove the redirection arguments and whatever is after them
             // note: i is the index to redirection token. The extra one element is for last NULL element for execv()
+
+            // if redirection was used, dont count them as tokens
+            i -= redirection_used;
             int num_clean_tokens = i+1;
             char **clean_tokens = (char **)malloc(sizeof(char *) * (num_clean_tokens+1));
             int count;
