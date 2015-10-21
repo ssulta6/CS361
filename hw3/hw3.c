@@ -58,5 +58,16 @@ void init_gc() {
 
 void gc() {
     char stack_var;
+
+    // gets stack (base?) pointer to current stack frame.
+    // should be just a little bit more than the end of the main's stack frame.
+    // It's only off by 16 bytes (good enough for now).
+    void* main_stack_end = __builtin_frame_address(0);
+    // gets stack pointer to previous stack frame (main). This should
+    // be exactly the base pointer (confirmed within gdb).
+    void* main_stack_start = __builtin_frame_address(1);
+
+    // printf("main start: %p, main end: %p\n", main_stack_start, main_stack_end);
+    
     heap_mem.end=sbrk(0);
 }
