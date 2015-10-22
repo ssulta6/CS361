@@ -54,6 +54,10 @@ void init_global_range(){
 void init_gc() {
     init_global_range();
     heap_mem.start=malloc(512);
+
+    // gets stack pointer to previous stack frame (main). This should
+    // be exactly the base pointer (confirmed within gdb).
+    stack_mem.start = __builtin_frame_address(1);
 }
 
 void gc() {
@@ -62,12 +66,9 @@ void gc() {
     // gets stack (base?) pointer to current stack frame.
     // should be just a little bit more than the end of the main's stack frame.
     // It's only off by 16 bytes (good enough for now).
-    size_t* main_stack_end = __builtin_frame_address(0);
-    // gets stack pointer to previous stack frame (main). This should
-    // be exactly the base pointer (confirmed within gdb).
-    size_t* main_stack_start = __builtin_frame_address(1);
+    stack_mem.end = __builtin_frame_address(0);
 
-    // printf("main start: %p, main end: %p\n", main_stack_start, main_stack_end);
+    printf("main start: %p, main end: %p\n", stack_mem.start, stack_mem.end);
 
     heap_mem.end=sbrk(0);
 
@@ -81,7 +82,18 @@ void gc() {
         size_t* p = isPtr((size_t*)(*current_global));
         // if not NULL
         if (p)
-            printf("isPtr(0x%lx): 0x%lx\n", (unsigned long) current_global,(unsigned long) p);
+            printf("global isPtr(%p): %p\n", current_global, p);
+
+    }
+
+    // go over stack memory
+    for (size_t* current_stack = stack_mem.start; current_stack > stack_mem.end; current_stack--) {
+        size_t* p = isPtr((size_t*)(*current_stack));
+        // if not NULL
+        if (p)
+            printf("stack isPtr(%p): %p\n", current_stack, p);
+        else
+            printf("stack ptr %p is null!\n", current_stack);
 
     }
 
@@ -96,7 +108,7 @@ size_t* isPtr(size_t* p) {
         return NULL;
     }
 
-    printf("pointer 0x%lx is in heap range!\n", (unsigned long)p);
+    printf("pointer %p is in heap range!\n", p);
     // now check that the block is allocated
     if (blockAllocated(p-1)) {
         return p-2;
