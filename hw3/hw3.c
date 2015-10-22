@@ -1,11 +1,9 @@
-
+#include "hw3.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-
-#define ptr void*
 
 struct memory_region{
     size_t * start;
@@ -64,10 +62,10 @@ void gc() {
     // gets stack (base?) pointer to current stack frame.
     // should be just a little bit more than the end of the main's stack frame.
     // It's only off by 16 bytes (good enough for now).
-    void* main_stack_end = __builtin_frame_address(0);
+    size_t* main_stack_end = __builtin_frame_address(0);
     // gets stack pointer to previous stack frame (main). This should
     // be exactly the base pointer (confirmed within gdb).
-    void* main_stack_start = __builtin_frame_address(1);
+    size_t* main_stack_start = __builtin_frame_address(1);
 
     // printf("main start: %p, main end: %p\n", main_stack_start, main_stack_end);
 
@@ -77,47 +75,73 @@ void gc() {
     // now iterate over global and stack memory, performing mark on every pointer within
     // them that happens to point to anything in the heap.
 
+    // go over global memory
+    for (size_t* current_global = global_mem.start; current_global < global_mem.end; current_global++) {
+        // printf("isPtr(%lx): %lx\n", (unsigned long) current_global, (unsigned long)isPtr(current_global));
+        size_t* p = isPtr((size_t*)(*current_global));
+        // if not NULL
+        if (p)
+            printf("isPtr(0x%lx): 0x%lx\n", (unsigned long) current_global,(unsigned long) p);
+
+    }
+
 }
 
 // If p points to some word in an allocated block, returns a
 // pointer b to the beginning of that block. Returns NULL otherwise.
-ptr isPtr(ptr p) {
+size_t* isPtr(size_t* p) {
+    // first check whether it's in range of heap memory
+    if (p < heap_mem.start || p > heap_mem.end) {
+        // printf("pointer %lx is not in heap memory range (%lx to %lx)!\n", (unsigned long)p, (unsigned long) heap_mem.start, (unsigned long) heap_mem.end);
+        return NULL;
+    }
 
+    printf("pointer 0x%lx is in heap range!\n", (unsigned long)p);
+    // now check that the block is allocated
+    if (blockAllocated(p-1)) {
+        return p-2;
+    }
+
+    return NULL;
 } 
 
 // Returns true if block b is already marked.
-int blockMarked(ptr b) {
+int blockMarked(size_t* b) {
 
 }
 
 // Returns true if block b is allocated.
-int blockAllocated(ptr b) {
-
+// assumes b is pointer to mem (user data)
+int blockAllocated(size_t* b) {
+    long next_chunk = (long)b-1 + length(b);
+    // the least sig. bit of next_chunk has current chunk allocated bit
+    return next_chunk & 1;
 }
 
 // Marks block b.
-void markBlock(ptr b) {
+void markBlock(size_t* b) {
 
 }
 
 // Returns the length in words (excluding the header) of block b.
-int length(ptr b) {
-
+int length(size_t* b) {
+    // b-1 gives the chunk size, we need to remove lower three bits cuz flags
+    return ((long)b - 1) & ~7;
 }
 
 // Changes the status of block b from marked to unmarked.
-void unmarkBlock(ptr b) {
+void unmarkBlock(size_t* b) {
 
 }
 
 // Returns the successor of block b in the heap.
-ptr nextBlock(ptr b) {
+size_t* nextBlock(size_t* b) {
 
 }
 
 // TODO check the pointer types here
-void mark(ptr p) {
-    long* b;
+void mark(size_t* p) {
+    size_t* b;
     if ((b = isPtr(p)) == NULL)
         return;
     if (blockMarked(b))
@@ -125,11 +149,11 @@ void mark(ptr p) {
     markBlock(b);
     int len = length(b);
     for (int i=0; i < len; i++)
-        mark((void*) b[i]);
+        mark((size_t *)b[i]);
     return;
 }
 
-void sweep(ptr b, ptr end) {
+void sweep(size_t* b, size_t* end) {
     while (b < end) {
         if (blockMarked(b))
             unmarkBlock(b);
