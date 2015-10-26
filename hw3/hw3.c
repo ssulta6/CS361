@@ -124,11 +124,18 @@ size_t* isPtr(size_t* p) {
         return NULL;
     }
 
-    // printf("pointer %p:%p is in heap range!\n", &p, p);
-    // now check that the block is allocated
-
-    if (blockAllocated(p)) {
-        return p-2;
+    // find the header for this chunk
+    // traverse entire heap and find the header for this chunk
+    size_t* current_mem = heap_mem.start;  // points to mem section of current chunk
+    while (current_mem < heap_mem.end) {
+        size_t* current_chunk = current_mem-2;  // points to header section of current chunk
+        
+        // now check if the pointer in question is between current and next chunk
+        size_t* next_mem = nextChunk(current_mem);
+        if (current_mem < ptr && ptr < next_mem)
+            return current_chunk;  // return header to this chunk
+        
+        current_mem = next_mem;  // move on to next chunk
     }
 
     return NULL;
@@ -181,9 +188,9 @@ void unmarkBlock(size_t* b) {
     *tmp = *tmp & ~0b100;
 }
 
-// Returns the successor of block b in the heap.
+// Returns pointer to mem of next chunk in the heap.
 // assumes b is pointer to mem (user data)
-size_t* nextBlock(size_t* b) {
+size_t* nextChunk(size_t* b) {
     return b + length(b);
 }
 
