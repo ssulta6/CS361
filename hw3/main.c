@@ -62,6 +62,7 @@ int inuse_chunks() {
 
 /* this keeps pointers strictly on the stack, so at i==50, we'll have allocated 100 chunks, and gc'd... 49? */
 void* recursive_allocations(int i) {
+	printf("sbrk(0): %p\n", sbrk(0));
 	void* ptr = malloc(i*100+128);
 	if(i==0) return ptr;
 
@@ -102,59 +103,63 @@ int main(int argc, char** argv) {
 	printf("Checking global root set handling an general GC functionality\n");
 
 	/* the most basic allocation and clearing pointer exercise. This only checks for following the root set pointers one level. */
-	void *pre = sbrk(0);
-	for(int i=0;i<MAX_ALLOCATIONS;i++) 
-		allocs[i]=malloc(i*2+128); 		 
+	// void *pre = sbrk(0);
+	// for(int i=0;i<MAX_ALLOCATIONS;i++) {
+	// 	allocs[i]=malloc(i*2+128);
+	// 	printf("allocated at &alloc[i]: %p with contents %p\n", &(allocs[i]), allocs[i]);
+	// }
 
-	printf("Heap after first round of allocations: %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// printf("Heap after first round of allocations: %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
 
-	for(int i=0;i<MAX_ALLOCATIONS;i++) 
-		allocs[i]=0; 		 
-	gc();
-	printf("Heap after first gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// for(int i=0;i<MAX_ALLOCATIONS;i++) {
+	// 	allocs[i]=0;
+	// 	// printf("zeroing alloc[i]: %p with contents %p\n", &(allocs[i]), allocs[i]);
+	// }
+	// printf("Heap after first gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// gc();
 
-	/* allocations which all point to each other. this checks for proper traversal of the chunk graph. */
-	for(int i=0;i<MAX_ALLOCATIONS;i++) {
-		allocs[i]=malloc(i*2+128); 
-		if(i>0)
-			*(void**)(allocs[i])=allocs[i-1];
-	}
-	printf("Heap after second round of allocations: %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
-	for(int i=0;i<MAX_ALLOCATIONS-1;i++) 
-		allocs[i]=0;
-	gc();
-	// here, since we keep the last entry, which points to the next-to-last and so on, everything should still be around
-	printf("Heap after clearing all but one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// /* allocations which all point to each other. this checks for proper traversal of the chunk graph. */
+	// for(int i=0;i<MAX_ALLOCATIONS;i++) {
+	// 	allocs[i]=malloc(i*2+128); 
+	// 	if(i>0)
+	// 		*(void**)(allocs[i])=allocs[i-1];
+	// }
+	// printf("Heap after second round of allocations: %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// for(int i=0;i<MAX_ALLOCATIONS-1;i++) 
+	// 	allocs[i]=0;
+	// gc();
+	// // here, since we keep the last entry, which points to the next-to-last and so on, everything should still be around
+	// printf("Heap after clearing all but one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
 
-	allocs[MAX_ALLOCATIONS-1]=0;
-	gc();
-	printf("Heap after clearing last one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// allocs[MAX_ALLOCATIONS-1]=0;
+	// gc();
+	// printf("Heap after clearing last one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
 
 
-	/* allocations which all point to each other. this checks for proper traversal of the chunk graph. */
-	for(int i=0;i<MAX_ALLOCATIONS;i++) {
-		allocs[i]=malloc(i*2+128); 
-		if(i>0) {
-			void *start_of_new_alloc = allocs[i];
-			void *start_of_prev_alloc = allocs[i-1];
+	// /* allocations which all point to each other. this checks for proper traversal of the chunk graph. */
+	// for(int i=0;i<MAX_ALLOCATIONS;i++) {
+	// 	allocs[i]=malloc(i*2+128); 
+	// 	if(i>0) {
+	// 		void *start_of_new_alloc = allocs[i];
+	// 		void *start_of_prev_alloc = allocs[i-1];
 			
-			int offset_into_new_alloc = 8*random_up_to((i*2+120)/8);
-			int offset_into_old_alloc = 8*random_up_to(((i-1)*2+120)/8);
-			void **location_of_pointer = (void**)(start_of_new_alloc + offset_into_new_alloc);
+	// 		int offset_into_new_alloc = 8*random_up_to((i*2+120)/8);
+	// 		int offset_into_old_alloc = 8*random_up_to(((i-1)*2+120)/8);
+	// 		void **location_of_pointer = (void**)(start_of_new_alloc + offset_into_new_alloc);
 
-			*location_of_pointer = start_of_prev_alloc + offset_into_old_alloc;
-		}
-	}
-	printf("Heap after third round of allocations: %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
-	for(int i=0;i<MAX_ALLOCATIONS-1;i++) 
-		allocs[i]=0;
-	gc();
-	// here, since we keep the last entry, which points to the next-to-last and so on, everything should still be around
-	printf("Heap after clearing all but one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// 		*location_of_pointer = start_of_prev_alloc + offset_into_old_alloc;
+	// 	}
+	// }
+	// printf("Heap after third round of allocations: %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// for(int i=0;i<MAX_ALLOCATIONS-1;i++) 
+	// 	allocs[i]=0;
+	// gc();
+	// // here, since we keep the last entry, which points to the next-to-last and so on, everything should still be around
+	// printf("Heap after clearing all but one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
 
-	allocs[MAX_ALLOCATIONS-1]=0;
-	gc();
-	printf("Heap after clearing last one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
+	// allocs[MAX_ALLOCATIONS-1]=0;
+	// gc();
+	// printf("Heap after clearing last one, and gc(): %zu, free %d, inuse %d\n",heap_size(),free_chunks(),inuse_chunks());
 
 	printf("Now checking stack root set handling.\n");
 

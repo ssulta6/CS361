@@ -37,6 +37,7 @@ void init_global_range(){
                 sscanf(line, "%lx-%lx", &start, &end);
                 global_mem.start=(size_t*)start;
                 global_mem.end=(size_t*)end;
+                break;
             }
         }
         else if (read_bytes > 0 && counter==3){
@@ -66,54 +67,66 @@ void gc() {
     // gets stack (base?) pointer to current stack frame.
     // should be just a little bit more than the end of the main's stack frame.
     // It's only off by 16 bytes (good enough for now).
+    // TODO these extra bytes could be crashing the system
     stack_mem.end = __builtin_frame_address(0);
 
-    printf("main start: %p, main end: %p\n", stack_mem.start, stack_mem.end);
+    // printf("main start: %p, main end: %p\n", stack_mem.start, stack_mem.end);
 
     heap_mem.end=sbrk(0);
 
 
+    // printf("heap start %p, heap end %p\n", heap_mem.start, heap_mem.end);
     // now iterate over global and stack memory, performing mark on every pointer within
     // them that happens to point to anything in the heap.
 
     // go over global memory and mark all reachable heap memory
     for (size_t* current_global = global_mem.start; current_global < global_mem.end; current_global++) {
-        // printf("isPtr(%lx): %lx\n", (unsigned long) current_global, (unsigned long)isPtr(current_global));
         size_t* p = isPtr((size_t*)(*current_global));
+        // printf("current_global:%p isPtr(%p): %p\n", current_global, (size_t*)(*current_global), p);
+
         // if not NULL
         if (p) {
-            // printf("global isPtr(%p): %p\n", current_global, p);
-            mark(p);
+            mark(current_global);
         }
 
     }
 
     // go over stack memory and mark all reachable heap memory
     for (size_t* current_stack = stack_mem.start; current_stack > stack_mem.end; current_stack--) {
+        // printf("current_stack: %p\n", current_stack);
         size_t* p = isPtr((size_t*)(*current_stack));
+        // printf("isPtr(%p): %p\n", (size_t*)(*current_stack), p);
         // if not NULL
         if (p) {
-            // printf("stack isPtr(%p): %p\n", current_stack, p);
-            mark(p);
+            mark(current_stack);
         } else {
             // printf("stack ptr %p is null!\n", current_stack);
         }
 
     }
 
+
+    // now go over ALL heap memory and remove unmarked blocks
+    sweep(heap_mem.start, heap_mem.end);
+
 }
 
 // If p points to some word in an allocated block, returns a
 // pointer b to the beginning of that block. Returns NULL otherwise.
 size_t* isPtr(size_t* p) {
+
+    // return NULL if p is NULL
+    if (!p)
+        return NULL;
     // first check whether it's in range of heap memory (exclude last block)
     if (p < heap_mem.start || p >= heap_mem.end) {
-        // printf("pointer %lx is not in heap memory range (%lx to %lx)!\n", (unsigned long)p, (unsigned long) heap_mem.start, (unsigned long) heap_mem.end);
+        // printf("pointer %p is not in heap memory range (%p to %p)!\n", p, heap_mem.start, heap_mem.end);
         return NULL;
     }
 
-    printf("pointer %p is in heap range!\n", p);
+    // printf("pointer %p:%p is in heap range!\n", &p, p);
     // now check that the block is allocated
+
     if (blockAllocated(p)) {
         return p-2;
     }
@@ -122,17 +135,24 @@ size_t* isPtr(size_t* p) {
 } 
 
 // Returns true if block b is already marked.
+// assumes b is a pointer to mem (user data)
 int blockMarked(size_t* b) {
-    size_t* tmp = (b+1);
-    return *tmp & 0b100;
+    // printf("blockMarked!\n");
+    size_t* tmp = (b-1);
+    return (*tmp) & 0b100;
 }
 
 // Returns true if block b is allocated.
 // assumes b is pointer to mem (user data)
 int blockAllocated(size_t* b) {
-    size_t* next_chunk = b-1 + length(b);
+    // printf("blockAllocated!\n");
+    size_t* next_chunk = (b-1) + length(b);
     // the least sig. bit of next_chunk has current chunk allocated bit
-    return (long)next_chunk & 1;
+    // printf("next_chunk: %p\n", next_chunk);
+    if (next_chunk < heap_mem.start || next_chunk >= heap_mem.end)
+        return 0;
+    // printf("returning value!\n");
+    return (long)(*next_chunk) & 1;
 }
 
 // Marks block b.
@@ -143,43 +163,66 @@ void markBlock(size_t* b) {
 }
 
 // Returns the length in words (excluding the header) of block b.
-int length(size_t* b) {
+// assumes b is pointer to mem (user data)
+long length(size_t* b) {
+
+    // printf("length of b: %p, heap start %p, heap end %p\n", b, heap_mem.start, heap_mem.end);
+    // printf("*b: %p\n", (size_t*)*b);
     // b-1 gives the chunk size, we need to remove lower three bits cuz flags
-    return (long)(b - 1) & ~7;
+    // return (long)(b - 1) & ~7;
+    return (long)(*(b - 1)) >> 3;  // return size in words (8 bytes each)
 }
 
 // Changes the status of block b from marked to unmarked.
+// assumes b is pointer to mem (user data)
 void unmarkBlock(size_t* b) {
     // unset the 3rd bit of the 2nd block
-    size_t* tmp = (b+1);
+    size_t* tmp = (b-1);
     *tmp = *tmp & ~0b100;
 }
 
 // Returns the successor of block b in the heap.
+// assumes b is pointer to mem (user data)
 size_t* nextBlock(size_t* b) {
-
+    return b + length(b);
 }
 
 void mark(size_t* p) {
     size_t* b;
+    // printf("mark\n");
     if ((b = isPtr(p)) == NULL)
         return;
-    if (blockMarked(b))
+    if (blockMarked(p))
         return;
-    markBlock(b);
-    int len = length(b);
-    for (int i=0; i < len; i++)
-        mark((size_t *)b[i]);
+    markBlock(p);
+    int len = length(p);
+    for (int i=0; i < len; i++) {
+        // printf("i: %d\n", i);
+        mark((size_t *)p[i]);
+    }
     return;
 }
 
 void sweep(size_t* b, size_t* end) {
+    printf("sweep start\n");
+    printf("b: %p, end:%p\n", b, end);
     while (b < end) {
-        if (blockMarked(b))
+        printf("sbrk(0): %p\n", sbrk(0));
+        size_t* next = nextBlock(b);
+        printf("heap start: %p, heap end: %p, global start: %p, global end: %p\n", heap_mem.start, heap_mem.end, global_mem.start, global_mem.end);
+        printf("b: %p\n", b);
+        if (blockMarked(b)) {
+            printf("unmarking %p\n", b);
             unmarkBlock(b);
-        else if (blockAllocated(b))
+        } else if (blockAllocated(b)) {
+            printf("freeing %p\n", b);
             free(b);
-        b = nextBlock(b);
+        }
+        // printf("current block: %p\n", b);
+        b = next;
+        // printf("next block: %p\n", b);
+        // update the heap end in case the OS decides to shrink it
+        end = sbrk(0);
     }
     return;
 }
