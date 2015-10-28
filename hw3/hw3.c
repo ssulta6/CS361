@@ -72,11 +72,13 @@ void gc() {
     // should be just a little bit more than the end of the main's stack frame.
     // It's only off by 16 bytes (good enough for now).
     // TODO these extra bytes could be crashing the system
-    stack_mem.end = (size_t*)__builtin_frame_address(0);
-
+    stack_mem.end = (size_t*)__builtin_frame_address(0) + 16;
+    // printf("&stack_var: %p\n", (size_t*)&stack_var);
+    // stack_mem.end= (size_t *)&stack_var;
+    // stack_mem.end += 8;
     // printf("main start: %p, main end: %p\n", stack_mem.start, stack_mem.end);
 
-    heap_mem.end=(size_t*)sbrk(0);
+    heap_mem.end = sbrk(0);
 
 
     // printf("heap start %p, heap end %p\n", heap_mem.start, heap_mem.end);
@@ -85,11 +87,11 @@ void gc() {
 
     // go over global memory and mark all reachable heap memory
     for (size_t* current_global = global_mem.start; current_global < global_mem.end; current_global++) {
-        size_t* current_chunk = isPtr((size_t*)(*current_global));
+        size_t* current_chunk = isPtr((size_t*)*current_global);
         // printf("current_global:%p isPtr(%p): %p\n", current_global, (size_t*)(*current_global), current_chunk);
 
-        // if not NULL
-        if (current_chunk) {
+        // if not NULL and we're not looping inside of the heap
+        if (current_chunk && (current_global < heap_mem.start || current_global > heap_mem.end)) {
             mark(current_chunk);
         }
 
@@ -98,7 +100,7 @@ void gc() {
     // go over stack memory and mark all reachable heap memory
     for (size_t* current_stack = stack_mem.start; current_stack > stack_mem.end; current_stack--) {
         // printf("current_stack: %p\n", current_stack);
-        size_t* current_chunk = isPtr((size_t*)(*current_stack));
+        size_t* current_chunk = isPtr((size_t*)*current_stack);
         // printf("isPtr(%p): %p\n", (size_t*)(*current_stack), p);
         // if not NULL
         if (current_chunk) {
@@ -152,14 +154,14 @@ size_t* isPtr(size_t* p) {
 int chunkMarked(size_t* b) {
     // printf("blockMarked!\n");
     size_t* tmp = (b+1);
-    return (*tmp) & 0b100;
+    return (long)(*tmp) & 0b100;
 }
 
 // Returns true if block b is allocated.
 // assumes b is pointer to chunk (header of this chunk)
 int chunkAllocated(size_t* b) {
     // printf("blockAllocated!\n");
-    size_t* next_chunk = b + length(b);
+    size_t* next_chunk = nextChunk(b);
     // the least sig. bit of next_chunk+1 has current chunk allocated bit
     // printf("next_chunk: %p\n", next_chunk);
     if (next_chunk < heap_mem.start || next_chunk >= heap_mem.end)
@@ -214,13 +216,13 @@ void mark(size_t* current_chunk) {
     // now call this recursively on every block in this chunk (within mem user data)
     for (int i=0; i < len; i++) {
         // printf("i: %d\n", i);
-        size_t* next_chunk = isPtr((size_t*)current_mem[i]);
+        size_t* next_chunk = isPtr((size_t*)*(current_mem + i));
         mark(next_chunk);
     }
 }
 
 void sweep(size_t* current_mem, size_t* end) {
-    printf("sweep start\n");
+    // printf("sweep start\n");
     
     // traverse entire heap and free unmarked chunks 
     while (current_mem < end) {
@@ -241,7 +243,7 @@ void sweep(size_t* current_mem, size_t* end) {
         }
         
         current_mem = next_mem;  // move on to next chunk
-        end = (size_t*)sbrk(0);
+        end = sbrk(0);
     }
 
     return;
