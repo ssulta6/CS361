@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 struct memory_region{
     size_t * start;
@@ -37,7 +36,6 @@ void init_global_range(){
                 sscanf(line, "%lx-%lx", &start, &end);
                 global_mem.start=(size_t*)start;
                 global_mem.end=(size_t*)end;
-                // break;
             }
         }
         else if (read_bytes > 0 && counter==3){
@@ -70,43 +68,31 @@ void gc() {
 
     // gets stack (base?) pointer to current stack frame.
     // should be just a little bit more than the end of the main's stack frame.
-    // It's only off by 16 bytes (good enough for now).
-    // TODO these extra bytes could be crashing the system
     stack_mem.end = (size_t*)__builtin_frame_address(0) + 16;
-    // printf("&stack_var: %p\n", (size_t*)&stack_var);
-    // stack_mem.end= (size_t *)&stack_var;
-    // stack_mem.end += 8;
-    // printf("main start: %p, main end: %p\n", stack_mem.start, stack_mem.end);
 
     heap_mem.end = sbrk(0);
 
 
-    // printf("heap start %p, heap end %p\n", heap_mem.start, heap_mem.end);
     // now iterate over global and stack memory, performing mark on every pointer within
     // them that happens to point to anything in the heap.
 
     // go over global memory and mark all reachable heap memory
     for (size_t* current_global = global_mem.start; current_global < global_mem.end; current_global++) {
         size_t* current_chunk = isPtr((size_t*)*current_global);
-        // printf("current_global:%p isPtr(%p): %p\n", current_global, (size_t*)(*current_global), current_chunk);
 
-        // if not NULL and we're not looping inside of the heap
+        // if not NULL and we're not looping inside of the heap, then mark it recursively
         if (current_chunk && (current_global < heap_mem.start || current_global > heap_mem.end)) {
             mark(current_chunk);
         }
 
     }
 
-    // go over stack memory and mark all reachable heap memory
+    // go over stack memory (from start to end, by decrementing) and mark all reachable heap memory
     for (size_t* current_stack = stack_mem.start; current_stack > stack_mem.end; current_stack--) {
-        // printf("current_stack: %p\n", current_stack);
         size_t* current_chunk = isPtr((size_t*)*current_stack);
-        // printf("isPtr(%p): %p\n", (size_t*)(*current_stack), p);
         // if not NULL
         if (current_chunk) {
             mark(current_chunk);
-        } else {
-            // printf("stack ptr %p is null!\n", current_stack);
         }
 
     }
@@ -114,21 +100,18 @@ void gc() {
 
     // now go over ALL heap memory and remove unmarked blocks
     sweep(heap_mem.start, heap_mem.end);
-
 }
 
-// If p points to some word in an allocated block, returns a
-// pointer b to the beginning of that block. Returns NULL otherwise.
+// If p points to some word in an allocated chunk, returns a
+// pointer b to the beginning of that chunk. Returns NULL otherwise.
 size_t* isPtr(size_t* p) {
 
     // return NULL if p is NULL
     if (!p) {
-        // printf("pointer %p is null!\n", p);
         return NULL;
     }
     // first check whether it's in range of heap memory (exclude last block)
     if (p < heap_mem.start || p >= heap_mem.end) {
-        // printf("pointer %p is not in heap memory range (%p to %p)!\n", p, heap_mem.start, heap_mem.end);
         return NULL;
     }
 
@@ -139,7 +122,6 @@ size_t* isPtr(size_t* p) {
         size_t* current_chunk = current_mem-2;  // points to header section of current chunk
         // now check if the pointer in question is between current and next chunk
         size_t* next_mem = nextChunk(current_chunk) + 2;
-        // printf("current_mem: %p, next_mem: %p, end: %p\n", current_mem, next_mem, heap_mem.end);   
         if (current_mem <= p && p < next_mem)
             return current_chunk;  // return header to this chunk
         
@@ -152,7 +134,6 @@ size_t* isPtr(size_t* p) {
 // Returns true if block b is already marked.
 // assumes b is a pointer to chunk (header of this chunk)
 int chunkMarked(size_t* b) {
-    // printf("blockMarked!\n");
     size_t* tmp = (b+1);
     return (long)(*tmp) & 0b100;
 }
@@ -160,13 +141,11 @@ int chunkMarked(size_t* b) {
 // Returns true if block b is allocated.
 // assumes b is pointer to chunk (header of this chunk)
 int chunkAllocated(size_t* b) {
-    // printf("blockAllocated!\n");
     size_t* next_chunk = nextChunk(b);
-    // the least sig. bit of next_chunk+1 has current chunk allocated bit
-    // printf("next_chunk: %p\n", next_chunk);
+    // avoid segfaults by checking if the given pointer is within heap
     if (next_chunk < heap_mem.start || next_chunk >= heap_mem.end)
         return 0;
-    // printf("returning value!\n");
+    // the least sig. bit of next_chunk+1 has current chunk allocated bit
     return (long)(*(next_chunk + 1)) & 1;
 }
 
@@ -177,14 +156,11 @@ void markChunk(size_t* b) {
     *tmp = (long)(*tmp) | 0b100;
 }
 
-// Returns the length in words (excluding the header) of block b.
+// Returns the length in words (including the header) of block b.
 // assumes b is pointer to chunk (header of this chunk)
 long length(size_t* b) {
 
-    // printf("length of b: %p, heap start %p, heap end %p\n", b, heap_mem.start, heap_mem.end);
-    // printf("*b: %p\n", (size_t*)*b);
     // b-1 gives the chunk size, we need to remove lower three bits cuz flags
-    // return (long)(b - 1) & ~7;
     return (long)(*(b + 1)) >> 3;  // return size in words (8 bytes each)
 }
 
@@ -202,9 +178,9 @@ size_t* nextChunk(size_t* b) {
     return b + length(b);
 }
 
+// recursively mark this chunk and any heap pointer inside this chunk.
 // current_chunk will hold pointer to chunk (header of the chunk)
 void mark(size_t* current_chunk) {
-    // printf("mark\n");
     if (!current_chunk)
         return;
     if (chunkMarked(current_chunk))
@@ -215,24 +191,20 @@ void mark(size_t* current_chunk) {
     size_t* current_mem = current_chunk + 2;
     // now call this recursively on every block in this chunk (within mem user data)
     for (int i=0; i < len; i++) {
-        // printf("i: %d\n", i);
         size_t* next_chunk = isPtr((size_t*)*(current_mem + i));
         mark(next_chunk);
     }
 }
 
+// go over entire heap range and free unmarked chunks
 void sweep(size_t* current_mem, size_t* end) {
-    // printf("sweep start\n");
     
-    // traverse entire heap and free unmarked chunks 
     while (current_mem < end) {
 
         size_t* current_chunk = current_mem-2;  // points to header section of current chunk
         
         // now check if the pointer in question is between current and next chunk
         size_t* next_mem = nextChunk(current_chunk) + 2;
-
-        // printf("current_mem: %p, current_chunk: %p, next_mem: %p, end: %p\n", current_mem, current_chunk, next_mem, end);
 
         // if current chunk is marked, unmark it so we reset for the next gc() call 
         if (chunkMarked(current_chunk)) {
@@ -243,9 +215,7 @@ void sweep(size_t* current_mem, size_t* end) {
         }
         
         current_mem = next_mem;  // move on to next chunk
-        end = sbrk(0);
+        end = sbrk(0);  // update heap end in case the OS shrinks it after a free
     }
-
-    return;
 }
 
