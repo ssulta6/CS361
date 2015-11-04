@@ -15,6 +15,8 @@
 
 #define BACKLOG (10)
 
+char root_dir[256];
+
 void serve_request(int);
 
 char * request_str = "HTTP/1.0 200 OK\r\n"
@@ -60,10 +62,8 @@ void serve_request(int client_fd){
   int file_offset = 0;
   char client_buf[4096];
   char send_buf[4096];
-  char filename[4096];
   char * requested_file;
   memset(client_buf,0,4096);
-  memset(filename,0,4096);
   while(1){
 
     file_offset += recv(client_fd,&client_buf[file_offset],4096,0);
@@ -73,15 +73,36 @@ void serve_request(int client_fd){
   requested_file = parseRequest(client_buf);
   send(client_fd,request_str,strlen(request_str),0);
   // take requested_file, add a . to beginning, open that file
-  filename[0] = '.';
-  strncpy(&filename[1],requested_file,4095);
-  read_fd = open(filename,0,0);
+  // find current directory
+  char curr_dir[256];
+  getcwd(curr_dir, 256);
+  if (curr_dir == NULL) {
+    printf("failed to get working directory error: %s\n", strerror(errno));
+    return;
+  }
+
+  // now construct filepath string using curr_dir + root_dir + filename
+  char filepath[8096];
+  snprintf(filepath, 8096, "%s/%s/%s", curr_dir, root_dir, requested_file);
+  read_fd = open(filepath,0,0);
+  if (read_fd == -1) {
+    printf("error %s for filepath: %s\n", strerror(errno), filepath);
+    return;
+  }
   while(1){
     bytes_read = read(read_fd,send_buf,4096);
     if(bytes_read == 0)
       break;
+    if (bytes_read == -1) {
+      printf("error %s for filepath: %s\n", strerror(errno), filepath);
+      break;
+    }
+    int sent = send(client_fd,send_buf,bytes_read,0);
+    // if we didn't send them all, send the remainder
+    while (sent < bytes_read) {
+      sent = sent + send(client_fd, send_buf + sent, bytes_read - sent, 0);
+    }  
 
-    send(client_fd,send_buf,bytes_read,0);
   }
   close(read_fd);
   close(client_fd);
@@ -98,7 +119,8 @@ int main(int argc, char** argv) {
 
     /* Read the port number from the first command line argument. */
     int port = atoi(argv[1]);
-
+    
+    strncpy(root_dir, argv[2], 255);
     /* Create a socket to which clients will connect. */
     int server_sock = socket(AF_INET6, SOCK_STREAM, 0);
     if(server_sock < 0) {
