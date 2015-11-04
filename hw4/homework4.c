@@ -54,14 +54,40 @@ char* parseRequest(char* request) {
   sscanf(request, "GET %s HTTP/1.", buffer);
   return buffer; 
 }
+// send file_fd to socket client_fd
+void serve_file(int file_fd, int client_fd) {
+    int bytes_read;
+    char send_buf[4096];
+    while(1){
+      bytes_read = read(file_fd ,send_buf,4096);
+      printf("read %d bytes: %s\n", bytes_read, send_buf);
+      if(bytes_read == 0)
+        break;
+      if (bytes_read == -1) {
+        printf("error %s\n", strerror(errno));
+        break;
+      }
+      int sent = send(client_fd,send_buf,bytes_read,0);
+      // if we didn't send them all, send the remainder
+      while (sent < bytes_read) {
+        sent = sent + send(client_fd, send_buf + sent, bytes_read - sent, 0);
+      }
+    }
+}
 
-
+// taken from http://stackoverflow.com/a/4553053/341505
+// returns true if path is directory
+int is_directory(const char *path) {
+   struct stat statbuf;
+   if (stat(path, &statbuf) != 0)
+       return 0;
+   return S_ISDIR(statbuf.st_mode);
+}
+  
 void serve_request(int client_fd){
   int read_fd;
-  int bytes_read;
   int file_offset = 0;
   char client_buf[4096];
-  char send_buf[4096];
   char * requested_file;
   memset(client_buf,0,4096);
   while(1){
@@ -84,24 +110,22 @@ void serve_request(int client_fd){
   // now construct filepath string using curr_dir + root_dir + filename
   char filepath[8096];
   snprintf(filepath, 8096, "%s/%s/%s", curr_dir, root_dir, requested_file);
-  read_fd = open(filepath,0,0);
-  if (read_fd == -1) {
-    printf("error %s for filepath: %s\n", strerror(errno), filepath);
-    return;
-  }
-  while(1){
-    bytes_read = read(read_fd,send_buf,4096);
-    if(bytes_read == 0)
-      break;
-    if (bytes_read == -1) {
+  printf("filepath: %s\n", filepath);
+
+  if (is_directory(filepath)) {
+    // check if index.html exists and serve that
+
+    // else serve a directory listing page
+  } else {
+    // if not directory, serve the file
+    read_fd = open(filepath,0,0);
+    if (read_fd == -1) {
       printf("error %s for filepath: %s\n", strerror(errno), filepath);
-      break;
+      return;
     }
-    int sent = send(client_fd,send_buf,bytes_read,0);
-    // if we didn't send them all, send the remainder
-    while (sent < bytes_read) {
-      sent = sent + send(client_fd, send_buf + sent, bytes_read - sent, 0);
-    }  
+    // if file doesn't exist, serve 404.html
+    // serve file
+    serve_file(read_fd, client_fd);
 
   }
   close(read_fd);
@@ -109,8 +133,14 @@ void serve_request(int client_fd){
   return;
 }
 
-/* Your program should take two arguments:
- * 1) The port number on which to bind and listen for connections, and
+
+// TODO handle each incoming client in its own thread
+// TODO serve index.html when given a directory
+// TODO serve 404.html when can't find a file
+// TODO serve directory listing when given a directory without an index file
+
+// Your program should take two arguments:
+/* 1) The port number on which to bind and listen for connections, and
  * 2) The directory out of which to serve files.
  */
 int main(int argc, char** argv) {
@@ -184,7 +214,6 @@ int main(int argc, char** argv) {
     while(1) {
         /* Declare a socket for the client connection. */
         int sock;
-        char buffer[256];
 
         /* Another address structure.  This time, the system will automatically
          * fill it in, when we accept a connection, to tell us where the
