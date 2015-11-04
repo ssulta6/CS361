@@ -45,92 +45,96 @@ char * index_ftr = "</ul><hr></body></html>";
  * The returned resource should be free'd by the caller function. 
  */
 char* parseRequest(char* request) {
-  //assume file paths are no more than 256 bytes + 1 for null. 
-  char *buffer = malloc(sizeof(char)*257);
-  memset(buffer, 0, 257);
-  
-  if(fnmatch("GET * HTTP/1.*",  request, 0)) return 0; 
+    //assume file paths are no more than 256 bytes + 1 for null. 
+    char *buffer = malloc(sizeof(char)*257);
+    memset(buffer, 0, 257);
 
-  sscanf(request, "GET %s HTTP/1.", buffer);
-  return buffer; 
+    if(fnmatch("GET * HTTP/1.*",  request, 0)) return 0; 
+
+    sscanf(request, "GET %s HTTP/1.", buffer);
+
+    printf("parseRequest: %s\n", buffer);
+    return buffer; 
 }
 // send file_fd to socket client_fd
 void serve_file(int file_fd, int client_fd) {
     int bytes_read;
     char send_buf[4096];
     while(1){
-      bytes_read = read(file_fd ,send_buf,4096);
-      printf("read %d bytes: %s\n", bytes_read, send_buf);
-      if(bytes_read == 0)
-        break;
-      if (bytes_read == -1) {
-        printf("error %s\n", strerror(errno));
-        break;
-      }
-      int sent = send(client_fd,send_buf,bytes_read,0);
-      // if we didn't send them all, send the remainder
-      while (sent < bytes_read) {
-        sent = sent + send(client_fd, send_buf + sent, bytes_read - sent, 0);
-      }
+        bytes_read = read(file_fd ,send_buf,4096);
+        printf("read %d bytes: %s\n", bytes_read, send_buf);
+        if(bytes_read == 0)
+            break;
+        if (bytes_read == -1) {
+            printf("error %s\n", strerror(errno));
+            break;
+        }
+        int sent = send(client_fd,send_buf,bytes_read,0);
+        // if we didn't send them all, send the remainder
+        while (sent < bytes_read) {
+            sent = sent + send(client_fd, send_buf + sent, bytes_read - sent, 0);
+        }
     }
 }
 
 // taken from http://stackoverflow.com/a/4553053/341505
 // returns true if path is directory
 int is_directory(const char *path) {
-   struct stat statbuf;
-   if (stat(path, &statbuf) != 0)
-       return 0;
-   return S_ISDIR(statbuf.st_mode);
+    struct stat statbuf;
+    if (stat(path, &statbuf) != 0)
+        return 0;
+    return S_ISDIR(statbuf.st_mode);
 }
-  
+
 void serve_request(int client_fd){
-  int read_fd;
-  int file_offset = 0;
-  char client_buf[4096];
-  char * requested_file;
-  memset(client_buf,0,4096);
-  while(1){
+    int read_fd;
+    int file_offset = 0;
+    char client_buf[4096];
+    char * requested_file;
+    memset(client_buf,0,4096);
+    while(1){
 
-    file_offset += recv(client_fd,&client_buf[file_offset],4096,0);
-    if(strstr(client_buf,"\r\n\r\n"))
-      break;
-  }
-  requested_file = parseRequest(client_buf);
-  send(client_fd,request_str,strlen(request_str),0);
-  // take requested_file, add a . to beginning, open that file
-  // find current directory
-  char curr_dir[256];
-  getcwd(curr_dir, 256);
-  if (curr_dir == NULL) {
-    printf("failed to get working directory error: %s\n", strerror(errno));
-    return;
-  }
-
-  // now construct filepath string using curr_dir + root_dir + filename
-  char filepath[8096];
-  snprintf(filepath, 8096, "%s/%s/%s", curr_dir, root_dir, requested_file);
-  printf("filepath: %s\n", filepath);
-
-  if (is_directory(filepath)) {
-    // check if index.html exists and serve that
-
-    // else serve a directory listing page
-  } else {
-    // if not directory, serve the file
-    read_fd = open(filepath,0,0);
-    if (read_fd == -1) {
-      printf("error %s for filepath: %s\n", strerror(errno), filepath);
-      return;
+        file_offset += recv(client_fd,&client_buf[file_offset],4096,0);
+        if(strstr(client_buf,"\r\n\r\n"))
+            break;
     }
-    // if file doesn't exist, serve 404.html
-    // serve file
-    serve_file(read_fd, client_fd);
+    requested_file = parseRequest(client_buf);
+    send(client_fd,request_str,strlen(request_str),0);
 
-  }
-  close(read_fd);
-  close(client_fd);
-  return;
+    printf("response: %s\n", request_str);
+    // take requested_file, add a . to beginning, open that file
+    // find current directory
+    char curr_dir[256];
+    getcwd(curr_dir, 256);
+    if (curr_dir == NULL) {
+        printf("failed to get working directory error: %s\n", strerror(errno));
+        return;
+    }
+
+    // now construct filepath string using curr_dir + root_dir + filename
+    char filepath[8096];
+    snprintf(filepath, 8096, "%s/%s/%s", curr_dir, root_dir, requested_file);
+    printf("filepath: %s\n", filepath);
+
+    if (is_directory(filepath)) {
+        // check if index.html exists and serve that
+
+        // else serve a directory listing page
+    } else {
+        // if not directory, serve the file
+        read_fd = open(filepath,0,0);
+        if (read_fd == -1) {
+            printf("error %s for filepath: %s\n", strerror(errno), filepath);
+            return;
+        }
+        // if file doesn't exist, serve 404.html
+        // serve file
+        serve_file(read_fd, client_fd);
+
+    }
+    close(read_fd);
+    close(client_fd);
+    return;
 }
 
 
@@ -149,7 +153,7 @@ int main(int argc, char** argv) {
 
     /* Read the port number from the first command line argument. */
     int port = atoi(argv[1]);
-    
+
     strncpy(root_dir, argv[2], 255);
     /* Create a socket to which clients will connect. */
     int server_sock = socket(AF_INET6, SOCK_STREAM, 0);
@@ -169,7 +173,7 @@ int main(int argc, char** argv) {
      * and setsockopt(2) pages for more details about socket options. */
     int reuse_true = 1;
     retval = setsockopt(server_sock, SOL_SOCKET, SO_REUSEADDR, &reuse_true,
-                        sizeof(reuse_true));
+            sizeof(reuse_true));
     if (retval < 0) {
         perror("Setting socket option failed");
         exit(1);
@@ -184,14 +188,14 @@ int main(int argc, char** argv) {
      * of the system's addresses.  If your machine has multiple network
      * interfaces, and you only wanted to accept connections from one of them,
      * you could supply the address of the interface you wanted to use here. */
-    
-   
+
+
     struct sockaddr_in6 addr;   // internet socket address data structure
     addr.sin6_family = AF_INET6;
     addr.sin6_port = htons(port); // byte order is significant
     addr.sin6_addr = in6addr_any; // listen to all interfaces
 
-    
+
     /* As its name implies, this system call asks the OS to bind the socket to
      * address and port specified above. */
     retval = bind(server_sock, (struct sockaddr*)&addr, sizeof(addr));
