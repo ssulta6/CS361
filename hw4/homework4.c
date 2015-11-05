@@ -144,6 +144,7 @@ void serve_request(int client_fd){
             if (stat(indexpath, &buffer) < 0 && errno == ENOENT) {
                 serve_listing(filepath);
                 printf("should serve directory listing!\n");
+                return;
             } else {
                 printf("can't open index.html, error: %s\n", strerror(errno));
                 close(read_fd);
@@ -186,9 +187,8 @@ void serve_request(int client_fd){
 
 
 // TODO handle each incoming client in its own thread
-// TODO serve 404.html when can't find a file
 // TODO serve directory listing when given a directory without an index file
-
+// TODO name this web server Abashe for lulz
 // Your program should take two arguments:
 /* 1) The port number on which to bind and listen for connections, and
  * 2) The directory out of which to serve files.
