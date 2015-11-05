@@ -223,10 +223,12 @@ void serve_request(int client_fd){
             if (stat(indexpath, &buffer) < 0 && errno == ENOENT) {
                 serve_listing(filepath, client_fd, requested_file);
                 printf("should serve directory listing!\n");
+                free(requested_file);
                 return;
             } else {
                 printf("can't open index.html, error: %s\n", strerror(errno));
                 close(read_fd);
+                free(requested_file);
                 return;
             }
             // the index.html will be served
@@ -247,6 +249,7 @@ void serve_request(int client_fd){
                 read_fd = open(newpath, 0, 0);
                 if (read_fd < 0) {
                     printf("can't open 404.html at %s, error: %s\n", newpath, strerror(errno));
+                    free(requested_file);
                     close(read_fd);
                     return;
                 }
@@ -254,6 +257,7 @@ void serve_request(int client_fd){
             } else {
                 printf("error getting 404.html: %s\n", strerror(errno));
                 close(read_fd);
+                free(requested_file);
                 return;
             }
         }
