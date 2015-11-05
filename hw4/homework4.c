@@ -60,6 +60,47 @@ char* parseRequest(char* request) {
     return buffer; 
 }
 
+// return MIME type string based on filename extension. Returned value should
+// be freed by the caller.
+char* get_mime_type(char* filename) {
+    char* mime_type = (char *) malloc(sizeof(char) * 256);
+    memset(mime_type, 0, 256);
+    
+    // get file extension
+    char* temp;
+    char extension[256];
+    temp = strtok(filename, ".");
+    strncpy(extension, temp, 256);
+    while (temp != NULL) {
+        strncpy(extension, temp, 256);
+        temp = strtok(NULL, ".");
+    }
+    
+    // printf("file extension is: %s\n", extension);
+    // lookup mime type based on file extension
+    if (strcmp(extension, "html") == 0) {
+        strncpy(mime_type, "text/html", 256);
+    } else if (strcmp(extension, "txt") == 0)  {
+        strncpy(mime_type, "text/plain", 256);
+    } else if (strcmp(extension, "jpeg") == 0 || strcmp(extension, "jpg") == 0 ) {
+        strncpy(mime_type, "image/jpeg", 256);
+    } else if (strcmp(extension, "gif") == 0 ){
+        strncpy(mime_type, "image/gif", 256);
+    } else if (strcmp(extension, "png") == 0) {
+        strncpy(mime_type, "image/png", 256);
+    } else if (strcmp(extension, "pdf") == 0) {
+        strncpy(mime_type, "application/pdf", 256);
+    } else if (strcmp(extension, "ico") == 0) {
+        strncpy(mime_type, "image/x-icon", 256);
+    } else {
+        strncpy(mime_type, "application/octet-stream", 256);
+    }
+
+    // return mime_type
+    return mime_type;
+
+}
+
 // send string to socket client_fd
 void serve_string(char* string, int client_fd) {
     int len = strlen(string);
@@ -91,7 +132,6 @@ void serve_file(int file_fd, int client_fd) {
     }
 }
 
-// TODO
 // generate an HTML page with directory listing, write it to a file,
 // then send it
 void serve_listing(char* dirpath, int client_fd, char* relative_path) {
@@ -155,6 +195,8 @@ void serve_request(int client_fd){
             break;
     }
     requested_file = parseRequest(client_buf);
+
+    // TODO don't send response until ready
     send(client_fd,request_str,strlen(request_str),0);
 
     printf("response: %s\n", request_str);
@@ -164,6 +206,10 @@ void serve_request(int client_fd){
     char filepath[8192];
     snprintf(filepath, 8192, "%s/%s%s", curr_dir, root_dir, requested_file);
     printf("filepath: %s\n", filepath);
+
+    char* mime_type = get_mime_type(requested_file);
+    printf("mime type: %s\n", mime_type);
+    // free(mime_type);
 
     if (is_directory(filepath)) {
         printf("is directory!\n");
@@ -216,13 +262,14 @@ void serve_request(int client_fd){
     serve_file(read_fd, client_fd);
     
     close(read_fd);
+    free(requested_file);
     return;
 }
 
 // TODO handle each incoming client in its own thread
-// TODO serve directory listing when given a directory without an index file
-// TODO name this web server Abashe for lulz
-// TODO serve correct content header depending on file type, also for 404 and errors
+// TODO serve correct content header depending on file type
+// TODO also include correct response in content header 
+// TODO figure out whether to use relative or absolute paths, especially when dealing with directory listing
 
 // Your program should take two arguments:
 /* 1) The port number on which to bind and listen for connections, and
