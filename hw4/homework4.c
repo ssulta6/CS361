@@ -56,6 +56,7 @@ char* parseRequest(char* request) {
     printf("parseRequest: %s\n", buffer);
     return buffer; 
 }
+
 // send file_fd to socket client_fd
 void serve_file(int file_fd, int client_fd) {
     int bytes_read;
@@ -120,6 +121,8 @@ void serve_request(int client_fd){
     // find current directory
     char curr_dir[256];
     getcwd(curr_dir, 256);
+    printf("current dir: %s\n", curr_dir);
+    printf("root dir: %s\n", root_dir);
     if (curr_dir == NULL) {
         printf("failed to get working directory error: %s\n", strerror(errno));
         return;
@@ -127,18 +130,20 @@ void serve_request(int client_fd){
 
     // now construct filepath string using curr_dir + root_dir + filename
     char filepath[8096];
-    snprintf(filepath, 8096, "%s/%s/%s", curr_dir, root_dir, requested_file);
+    snprintf(filepath, 8096, "%s/%s%s", curr_dir, root_dir, requested_file);
     printf("filepath: %s\n", filepath);
 
     if (is_directory(filepath)) {
         // check if index.html exists and serve that
         char indexpath[8096];
-        snprintf(indexpath, 8096, "%sindex.html", filepath);
+        snprintf(indexpath, 8096, "%s/index.html", filepath);
         read_fd = open(indexpath,0 ,0);
         if (read_fd < 0) {
             // if file doesnt exist, serve a directory listing page instead
-            if (errno == EEXIST) {
+            struct stat buffer;
+            if (stat(indexpath, &buffer) < 0 && errno == ENOENT) {
                 serve_listing(filepath);
+                printf("should serve directory listing!\n");
             } else {
                 printf("can't open index.html, error: %s\n", strerror(errno));
                 close(read_fd);
@@ -147,17 +152,30 @@ void serve_request(int client_fd){
             // the index.html will be served
         }    
     
-    
+    // if not directory, serve the file
     } else {
-        // if not directory, serve the file
         read_fd = open(filepath,0,0);
-        if (read_fd == -1) {
-            printf("error %s for filepath: %s\n", strerror(errno), filepath);
-            close(read_fd);
-            return;
-        }
-        // if file doesn't exist, serve 404.html
+        if (read_fd < 0) { 
 
+            // serve the 404 file if you can't find the file
+            struct stat buffer;
+            if (stat(filepath, &buffer) < 0 && errno == ENOENT) {
+                char newpath[8096];
+                snprintf(newpath, 8096, "%s/%s/404.html", curr_dir, root_dir);
+                close(read_fd);
+                read_fd = open(newpath, 0, 0);
+                if (read_fd < 0) {
+                    printf("can't open 404.html at %s, error: %s\n", newpath, strerror(errno));
+                    close(read_fd);
+                    return;
+                }
+                printf("serving 404 html!\n");
+            } else {
+                printf("error getting 404.html: %s\n", strerror(errno));
+                close(read_fd);
+                return;
+            }
+        }
     }
     // serve file
     serve_file(read_fd, client_fd);
@@ -168,7 +186,6 @@ void serve_request(int client_fd){
 
 
 // TODO handle each incoming client in its own thread
-// TODO serve index.html when given a directory
 // TODO serve 404.html when can't find a file
 // TODO serve directory listing when given a directory without an index file
 
