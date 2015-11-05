@@ -16,6 +16,7 @@
 #define BACKLOG (10)
 
 char root_dir[256];
+char curr_dir[256];
 
 void serve_request(int);
 
@@ -118,15 +119,6 @@ void serve_request(int client_fd){
 
     printf("response: %s\n", request_str);
     // take requested_file, add a . to beginning, open that file
-    // find current directory
-    char curr_dir[256];
-    getcwd(curr_dir, 256);
-    printf("current dir: %s\n", curr_dir);
-    printf("root dir: %s\n", root_dir);
-    if (curr_dir == NULL) {
-        printf("failed to get working directory error: %s\n", strerror(errno));
-        return;
-    }
 
     // now construct filepath string using curr_dir + root_dir + filename
     char filepath[8096];
@@ -134,6 +126,7 @@ void serve_request(int client_fd){
     printf("filepath: %s\n", filepath);
 
     if (is_directory(filepath)) {
+        printf("is directory!\n");
         // check if index.html exists and serve that
         char indexpath[8096];
         snprintf(indexpath, 8096, "%s/index.html", filepath);
@@ -152,9 +145,10 @@ void serve_request(int client_fd){
             }
             // the index.html will be served
         }    
-    
-    // if not directory, serve the file
+
+        // if not directory, serve the file
     } else {
+        printf("is NOT directory!\n");
         read_fd = open(filepath,0,0);
         if (read_fd < 0) { 
 
@@ -189,11 +183,15 @@ void serve_request(int client_fd){
 // TODO handle each incoming client in its own thread
 // TODO serve directory listing when given a directory without an index file
 // TODO name this web server Abashe for lulz
+// TODO serve correct content header depending on file type
+
 // Your program should take two arguments:
 /* 1) The port number on which to bind and listen for connections, and
  * 2) The directory out of which to serve files.
  */
 int main(int argc, char** argv) {
+   
+    
     /* For checking return values. */
     int retval;
 
@@ -201,6 +199,16 @@ int main(int argc, char** argv) {
     int port = atoi(argv[1]);
 
     strncpy(root_dir, argv[2], 255);
+    
+    // find current directory
+    getcwd(curr_dir, 256);
+    if (curr_dir == NULL) {
+        printf("failed to get working directory error: %s\n", strerror(errno));
+        exit(1);
+    }
+    char dir[8096];
+    snprintf(dir, 8096, "%s/%s", curr_dir, root_dir);
+    printf("Welcome to Abashe, Basheer's web server! We are currently running on port %d and our root directory is %s\n", port, dir);
     /* Create a socket to which clients will connect. */
     int server_sock = socket(AF_INET6, SOCK_STREAM, 0);
     if(server_sock < 0) {
