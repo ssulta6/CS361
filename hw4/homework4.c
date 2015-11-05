@@ -77,6 +77,20 @@ void serve_file(int file_fd, int client_fd) {
     }
 }
 
+// TODO
+// generate an HTML page with directory listing, write it to a file,
+// then send it
+void serve_listing(char* dirpath) {
+
+    // generate HTML page
+
+    // write it to a temp file
+
+    // send it
+
+    return;
+}
+
 // taken from http://stackoverflow.com/a/4553053/341505
 // returns true if path is directory
 int is_directory(const char *path) {
@@ -118,22 +132,37 @@ void serve_request(int client_fd){
 
     if (is_directory(filepath)) {
         // check if index.html exists and serve that
-
-        // else serve a directory listing page
+        char indexpath[8096];
+        snprintf(indexpath, 8096, "%sindex.html", filepath);
+        read_fd = open(indexpath,0 ,0);
+        if (read_fd < 0) {
+            // if file doesnt exist, serve a directory listing page instead
+            if (errno == EEXIST) {
+                serve_listing(filepath);
+            } else {
+                printf("can't open index.html, error: %s\n", strerror(errno));
+                close(read_fd);
+                return;
+            }
+            // the index.html will be served
+        }    
+    
+    
     } else {
         // if not directory, serve the file
         read_fd = open(filepath,0,0);
         if (read_fd == -1) {
             printf("error %s for filepath: %s\n", strerror(errno), filepath);
+            close(read_fd);
             return;
         }
         // if file doesn't exist, serve 404.html
-        // serve file
-        serve_file(read_fd, client_fd);
 
     }
+    // serve file
+    serve_file(read_fd, client_fd);
+    
     close(read_fd);
-    close(client_fd);
     return;
 }
 
