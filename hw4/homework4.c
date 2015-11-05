@@ -12,11 +12,13 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #define BACKLOG (10)
 
 char root_dir[256];
 char curr_dir[256];
+int port;
 
 void serve_request(int);
 
@@ -34,7 +36,7 @@ char * index_hdr = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\"><ht
 
 char * index_body = "<li><a href=\"%s\">%s</a>";
 
-char * index_ftr = "</ul><hr></body></html>";
+char * index_ftr = "</ul><hr><address>Abashe 1.0.0 Server at localhost Port %d</address></body></html>";
 
 /* char* parseRequest(char* request)
  * Args: HTTP request of the form "GET /path/to/resource HTTP/1.X" 
@@ -56,6 +58,16 @@ char* parseRequest(char* request) {
 
     printf("parseRequest: %s\n", buffer);
     return buffer; 
+}
+
+// send string to socket client_fd
+void serve_string(char* string, int client_fd) {
+    int len = strlen(string);
+    int sent = send(client_fd, string, len, 0);
+    // if we didn't send them all, send the remainder
+    while (sent < len) {
+        sent = sent + send(client_fd, string + sent, len - sent, 0);
+    }
 }
 
 // send file_fd to socket client_fd
@@ -82,15 +94,43 @@ void serve_file(int file_fd, int client_fd) {
 // TODO
 // generate an HTML page with directory listing, write it to a file,
 // then send it
-void serve_listing(char* dirpath) {
+void serve_listing(char* dirpath, int client_fd, char* relative_path) {
 
     // generate HTML page
+    char listing[128000];
+    char temp[4096];
+    snprintf(temp, 4096, index_hdr, dirpath, dirpath);
+    strncpy(listing, temp, 4096);
+    printf("listing header: %s\n", listing);
+    DIR *dir;
+    struct dirent *ep;
+    // for every file in the listing
+    dir = opendir (dirpath);
+    if (dir != NULL)
+    {
+        while (ep = readdir(dir)) {
+            printf("found file: %s\n", ep->d_name);
+            // generate a listing entry (table row)
+            char row[4096];
+            char filepath[4096];
+            snprintf(filepath, 4096, "%s%s", relative_path, ep->d_name);
+            snprintf(row, 4096, index_body, filepath, ep->d_name);
+            // append it to the listing string
+            strncat(listing, row, 128000); 
+            printf("listing now: %s\n", listing);
+        }
+        printf("closing dir!\n");
+        (void) closedir (dir);
+    } else
+        perror ("Couldn't open the directory to view listing");
 
-    // write it to a temp file
-
+    // now append the footer
+    char row[4096];
+    snprintf(row, 4096, index_ftr, port);
+    strncat(listing, row, 128000);
+    
     // send it
-
-    return;
+    serve_string(listing, client_fd);
 }
 
 // taken from http://stackoverflow.com/a/4553053/341505
@@ -121,21 +161,21 @@ void serve_request(int client_fd){
     // take requested_file, add a . to beginning, open that file
 
     // now construct filepath string using curr_dir + root_dir + filename
-    char filepath[8096];
-    snprintf(filepath, 8096, "%s/%s%s", curr_dir, root_dir, requested_file);
+    char filepath[8192];
+    snprintf(filepath, 8192, "%s/%s%s", curr_dir, root_dir, requested_file);
     printf("filepath: %s\n", filepath);
 
     if (is_directory(filepath)) {
         printf("is directory!\n");
         // check if index.html exists and serve that
-        char indexpath[8096];
-        snprintf(indexpath, 8096, "%s/index.html", filepath);
+        char indexpath[8192];
+        snprintf(indexpath, 8192, "%s/index.html", filepath);
         read_fd = open(indexpath,0 ,0);
         if (read_fd < 0) {
             // if file doesnt exist, serve a directory listing page instead
             struct stat buffer;
             if (stat(indexpath, &buffer) < 0 && errno == ENOENT) {
-                serve_listing(filepath);
+                serve_listing(filepath, client_fd, requested_file);
                 printf("should serve directory listing!\n");
                 return;
             } else {
@@ -155,8 +195,8 @@ void serve_request(int client_fd){
             // serve the 404 file if you can't find the file
             struct stat buffer;
             if (stat(filepath, &buffer) < 0 && errno == ENOENT) {
-                char newpath[8096];
-                snprintf(newpath, 8096, "%s/%s/404.html", curr_dir, root_dir);
+                char newpath[8192];
+                snprintf(newpath, 8192, "%s/%s/404.html", curr_dir, root_dir);
                 close(read_fd);
                 read_fd = open(newpath, 0, 0);
                 if (read_fd < 0) {
@@ -179,11 +219,10 @@ void serve_request(int client_fd){
     return;
 }
 
-
 // TODO handle each incoming client in its own thread
 // TODO serve directory listing when given a directory without an index file
 // TODO name this web server Abashe for lulz
-// TODO serve correct content header depending on file type
+// TODO serve correct content header depending on file type, also for 404 and errors
 
 // Your program should take two arguments:
 /* 1) The port number on which to bind and listen for connections, and
@@ -196,7 +235,7 @@ int main(int argc, char** argv) {
     int retval;
 
     /* Read the port number from the first command line argument. */
-    int port = atoi(argv[1]);
+    port = atoi(argv[1]);
 
     strncpy(root_dir, argv[2], 255);
     
@@ -206,8 +245,8 @@ int main(int argc, char** argv) {
         printf("failed to get working directory error: %s\n", strerror(errno));
         exit(1);
     }
-    char dir[8096];
-    snprintf(dir, 8096, "%s/%s", curr_dir, root_dir);
+    char dir[8192];
+    snprintf(dir, 8192, "%s/%s", curr_dir, root_dir);
     printf("Welcome to Abashe, Basheer's web server! We are currently running on port %d and our root directory is %s\n", port, dir);
     /* Create a socket to which clients will connect. */
     int server_sock = socket(AF_INET6, SOCK_STREAM, 0);
