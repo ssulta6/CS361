@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(1234);
     // fill up IP address
-    inet_pton(addr.sin_family, "8.8.8.8", &(addr.sin_addr));
+    inet_pton(addr.sin_family, "0.0.0.0", &(addr.sin_addr));
     
     // create a client TCP socket
     int client_sock = socket(addr.sin_family, SOCK_STREAM, 0);
