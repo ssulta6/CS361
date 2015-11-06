@@ -22,8 +22,8 @@ int port;
 
 void serve_request(int);
 
-char * request_str = "HTTP/1.0 200 OK\r\n"
-        "Content-type: text/html; charset=UTF-8\r\n\r\n";
+char * response_str = "HTTP/1.0 %s\r\n"
+        "Content-type: %s; charset=UTF-8\r\n\r\n";
 
 
 char * index_hdr = "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\"><html>"
@@ -60,16 +60,28 @@ char* parseRequest(char* request) {
     return buffer; 
 }
 
-// return MIME type string based on filename extension. Returned value should
-// be freed by the caller.
+// return status string based on status code
+char* get_status_string(int status_code) {
+    if (status_code == 200) {
+        return "200 OK";
+    } else if (status_code == 404) {
+        return "404 Not Found";
+    } else {
+        return "500 Internal Server Error";
+    }
+}
+
+// return MIME type string based on filename extension.
 char* get_mime_type(char* filename) {
-    char* mime_type = (char *) malloc(sizeof(char) * 256);
-    memset(mime_type, 0, 256);
     
+    // create copy of filename string so we don't alter filename pointer later using strtok
+    char copy[256];
+    strncpy(copy, filename, 256);
+
     // get file extension
     char* temp;
     char extension[256];
-    temp = strtok(filename, ".");
+    temp = strtok(copy, ".");
     strncpy(extension, temp, 256);
     while (temp != NULL) {
         strncpy(extension, temp, 256);
@@ -79,26 +91,38 @@ char* get_mime_type(char* filename) {
     // printf("file extension is: %s\n", extension);
     // lookup mime type based on file extension
     if (strcmp(extension, "html") == 0) {
-        strncpy(mime_type, "text/html", 256);
+        return "text/html";
     } else if (strcmp(extension, "txt") == 0)  {
-        strncpy(mime_type, "text/plain", 256);
+        return "text/plain";
     } else if (strcmp(extension, "jpeg") == 0 || strcmp(extension, "jpg") == 0 ) {
-        strncpy(mime_type, "image/jpeg", 256);
+        return "image/jpeg";
     } else if (strcmp(extension, "gif") == 0 ){
-        strncpy(mime_type, "image/gif", 256);
+        return "image/gif";
     } else if (strcmp(extension, "png") == 0) {
-        strncpy(mime_type, "image/png", 256);
+        return "image/png";
     } else if (strcmp(extension, "pdf") == 0) {
-        strncpy(mime_type, "application/pdf", 256);
+        return "application/pdf";
     } else if (strcmp(extension, "ico") == 0) {
-        strncpy(mime_type, "image/x-icon", 256);
+        return "image/x-icon";
+    } else if (strcmp(extension, "js") == 0) {
+        return "application/javascript";
     } else {
-        strncpy(mime_type, "application/octet-stream", 256);
+        return "application/octet-stream";
     }
 
-    // return mime_type
-    return mime_type;
+}
 
+// returns response string, should be freed by caller
+// takes in filename and http status_code
+char* get_response(char* filename, int status_code) {
+    char* response = (char*) malloc(sizeof(char)*512);
+    memset(response, 0, 512);
+    
+    char temp[512];
+    snprintf(temp, 512, response_str, get_status_string(status_code), get_mime_type(filename));
+    
+    strncpy(response, temp, 512);
+    return response;
 }
 
 // send string to socket client_fd
@@ -196,20 +220,11 @@ void serve_request(int client_fd){
     }
     requested_file = parseRequest(client_buf);
 
-    // TODO don't send response until ready
-    send(client_fd,request_str,strlen(request_str),0);
-
-    printf("response: %s\n", request_str);
-    // take requested_file, add a . to beginning, open that file
-
     // now construct filepath string using curr_dir + root_dir + filename
     char filepath[8192];
     snprintf(filepath, 8192, "%s/%s%s", curr_dir, root_dir, requested_file);
     printf("filepath: %s\n", filepath);
 
-    char* mime_type = get_mime_type(requested_file);
-    printf("mime type: %s\n", mime_type);
-    // free(mime_type);
 
     if (is_directory(filepath)) {
         printf("is directory!\n");
@@ -217,23 +232,36 @@ void serve_request(int client_fd){
         char indexpath[8192];
         snprintf(indexpath, 8192, "%s/index.html", filepath);
         read_fd = open(indexpath,0 ,0);
+        // can't find index file for this directory
         if (read_fd < 0) {
             // if file doesnt exist, serve a directory listing page instead
             struct stat buffer;
             if (stat(indexpath, &buffer) < 0 && errno == ENOENT) {
+                // serve response 200
+                // throw in ".html" just for content-type
+                serve_string(get_response(".html", 200), client_fd);
+                // serve directory listing
                 serve_listing(filepath, client_fd, requested_file);
                 printf("should serve directory listing!\n");
                 free(requested_file);
                 return;
             } else {
+                // serve 500 internal server error since file exists but we can't open it
+                serve_string(get_response(requested_file, 500), client_fd);
                 printf("can't open index.html, error: %s\n", strerror(errno));
                 close(read_fd);
                 free(requested_file);
                 return;
             }
-            // the index.html will be served
-        }    
-
+        // the index.html will be served
+        } else {    
+            serve_string(get_response("index.html", 200), client_fd);
+            // serve file
+            serve_file(read_fd, client_fd);
+            close(read_fd);
+            free(requested_file);
+            return;
+        }
         // if not directory, serve the file
     } else {
         printf("is NOT directory!\n");
@@ -248,13 +276,26 @@ void serve_request(int client_fd){
                 close(read_fd);
                 read_fd = open(newpath, 0, 0);
                 if (read_fd < 0) {
+                    // can't open file, send internal server error
+                    serve_string(get_response(requested_file, 500), client_fd);
                     printf("can't open 404.html at %s, error: %s\n", newpath, strerror(errno));
                     free(requested_file);
                     close(read_fd);
                     return;
                 }
+                
+                char* tmp = "404.html";
+                // else if we can serve the 404, then first serve response
                 printf("serving 404 html!\n");
+                serve_string(get_response(tmp, 404), client_fd);
+                // serve file
+                serve_file(read_fd, client_fd);
+                close(read_fd);
+                free(requested_file);
+                return;
             } else {
+                // can't open file, send internal server error
+                serve_string(get_response(requested_file, 500), client_fd);
                 printf("error getting 404.html: %s\n", strerror(errno));
                 close(read_fd);
                 free(requested_file);
@@ -262,6 +303,8 @@ void serve_request(int client_fd){
             }
         }
     }
+    // serve 200 OK response
+    serve_string(get_response(requested_file, 200), client_fd);
     // serve file
     serve_file(read_fd, client_fd);
     
@@ -271,10 +314,7 @@ void serve_request(int client_fd){
 }
 
 // TODO handle each incoming client in its own thread
-// TODO serve correct content header depending on file type
-// TODO also include correct response in content header 
-// TODO figure out whether to use relative or absolute paths, especially when dealing with directory listing
-
+// TODO fix bug incorrect 404 when sub directory
 // Your program should take two arguments:
 /* 1) The port number on which to bind and listen for connections, and
  * 2) The directory out of which to serve files.
