@@ -56,7 +56,6 @@ char* parseRequest(char* request) {
 
     sscanf(request, "GET %s HTTP/1.", buffer);
 
-    printf("parseRequest: %s\n", buffer);
     return buffer; 
 }
 
@@ -88,7 +87,6 @@ char* get_mime_type(char* filename) {
         temp = strtok(NULL, ".");
     }
     
-    // printf("file extension is: %s\n", extension);
     // lookup mime type based on file extension
     if (strcmp(extension, "html") == 0) {
         return "text/html";
@@ -141,7 +139,6 @@ void serve_file(int file_fd, int client_fd) {
     char send_buf[4096];
     while(1){
         bytes_read = read(file_fd ,send_buf,4096);
-        printf("read %d bytes: %s\n", bytes_read, send_buf);
         if(bytes_read == 0)
             break;
         if (bytes_read == -1) {
@@ -165,7 +162,6 @@ void serve_listing(char* dirpath, int client_fd, char* relative_path) {
     char temp[4096];
     snprintf(temp, 4096, index_hdr, dirpath, dirpath);
     strncpy(listing, temp, 4096);
-    printf("listing header: %s\n", listing);
     DIR *dir;
     struct dirent *ep;
     // for every file in the listing
@@ -173,7 +169,6 @@ void serve_listing(char* dirpath, int client_fd, char* relative_path) {
     if (dir != NULL)
     {
         while (ep = readdir(dir)) {
-            printf("found file: %s\n", ep->d_name);
             // generate a listing entry (table row)
             char row[4096];
             char filepath[4096];
@@ -181,9 +176,7 @@ void serve_listing(char* dirpath, int client_fd, char* relative_path) {
             snprintf(row, 4096, index_body, filepath, ep->d_name);
             // append it to the listing string
             strncat(listing, row, 128000); 
-            printf("listing now: %s\n", listing);
         }
-        printf("closing dir!\n");
         (void) closedir (dir);
     } else
         perror ("Couldn't open the directory to view listing");
@@ -223,11 +216,9 @@ void serve_request(int client_fd){
     // now construct filepath string using curr_dir + root_dir + filename
     char filepath[8192];
     snprintf(filepath, 8192, "%s/%s%s", curr_dir, root_dir, requested_file);
-    printf("filepath: %s\n", filepath);
 
 
     if (is_directory(filepath)) {
-        printf("is directory!\n");
         // check if index.html exists and serve that
         char indexpath[8192];
         snprintf(indexpath, 8192, "%s/index.html", filepath);
@@ -242,7 +233,6 @@ void serve_request(int client_fd){
                 serve_string(get_response(".html", 200), client_fd);
                 // serve directory listing
                 serve_listing(filepath, client_fd, requested_file);
-                printf("should serve directory listing!\n");
                 free(requested_file);
                 return;
             } else {
@@ -264,7 +254,6 @@ void serve_request(int client_fd){
         }
         // if not directory, serve the file
     } else {
-        printf("is NOT directory!\n");
         read_fd = open(filepath,0,0);
         if (read_fd < 0) { 
 
@@ -286,7 +275,6 @@ void serve_request(int client_fd){
                 
                 char* tmp = "404.html";
                 // else if we can serve the 404, then first serve response
-                printf("serving 404 html!\n");
                 serve_string(get_response(tmp, 404), client_fd);
                 // serve file
                 serve_file(read_fd, client_fd);
