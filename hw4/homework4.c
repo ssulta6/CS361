@@ -314,7 +314,6 @@ void serve_request(int client_fd){
 }
 
 // TODO handle each incoming client in its own thread
-// TODO fix bug incorrect 404 when sub directory
 // Your program should take two arguments:
 /* 1) The port number on which to bind and listen for connections, and
  * 2) The directory out of which to serve files.

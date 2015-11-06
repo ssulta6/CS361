@@ -12,7 +12,7 @@ function DanceSpan(element, x, y) {
 };
 
 function preload() {
-    song = loadSound('Nyan_cat.ogg');
+    song = loadSound('/Nyan_cat.ogg');
 }
 
 function setup() {
@@ -30,7 +30,7 @@ function setup() {
         };   
     };
     
-    var img = createImg('nyan2.gif');
+    var img = createImg('/nyan2.gif');
     
 }
 
