@@ -301,15 +301,18 @@ void serve_request(int client_fd){
                 free(requested_file);
                 return;
             }
+        // if we can find the file, serve it
+        } else {
+            // serve 200 OK response
+            serve_string(get_response(requested_file, 200), client_fd);
+            // serve file
+            serve_file(read_fd, client_fd);
+            close(read_fd);
+            free(requested_file);
         }
     }
-    // serve 200 OK response
-    serve_string(get_response(requested_file, 200), client_fd);
-    // serve file
-    serve_file(read_fd, client_fd);
-    
-    close(read_fd);
-    free(requested_file);
+
+    // we should never get here, all cases are accounted for above
     return;
 }
 
