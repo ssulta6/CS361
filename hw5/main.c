@@ -90,9 +90,9 @@ int floor_is_empty(void* arg) {
     int current_floor = (int)arg;
 
     log(0,"DEBUG: Checking floor_is_empty at floor %d.\n", current_floor);
-    // loop over every passenger and return 0 if any of the passengers are on this floor
+    // loop over every remaining passenger and return 0 if any of the passengers are on this floor
     for (int i = 0; i < PASSENGERS; i++) {
-        if (passengers[i].from_floor == current_floor) {
+        if (passengers[i].from_floor == current_floor && passengers[i].state != EXITED) {
             log(0,"DEBUG: floor_is_empty actually FALSE %d\n", current_floor);
             return 0;
         }

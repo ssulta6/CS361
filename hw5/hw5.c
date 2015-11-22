@@ -94,7 +94,7 @@ void elevator_ready(int elevator, int at_floor,
 		state=ELEVATOR_OPEN;
                 log(0,"DEBUG elevator arrived on floor %d\n", at_floor);
                 // only wait for passenger if we have one onboard or we're on a non-vacant floor
-                if (occupancy == 1 || floor_vacant(current_floor) == 0) {
+                if (occupancy == 1 || floor_vacant(at_floor) == 0) {
                     log(0,"DEBUG elevator waiting on door barrier at: %d with occupancy: %d\n", at_floor, occupancy);
                     pthread_mutex_unlock(&lock);
                     pthread_barrier_wait(&door_barrier);
