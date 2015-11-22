@@ -44,5 +44,5 @@ void passenger_request(int passenger, int from_floor, int to_floor, void (*enter
 	 call move_direction with direction -1 to descend, 1 to ascend.
 	 must call door_open before letting passengers in, and door_close before moving the elevator 
 */
-void elevator_ready(int elevator, int at_floor, void(*move_direction)(int, int), void(*door_open)(int), void(*door_close)(int));
+void elevator_ready(int elevator, int at_floor, void(*move_direction)(int, int), void(*door_open)(int), void(*door_close)(int), int(*floor_vacant)(int));
 

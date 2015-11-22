@@ -21,6 +21,18 @@ static struct Elevator {
 	int trips;
 } elevators[ELEVATORS];
 
+/* This is an internal struct used by the enforcement system 
+   - there is no access to this from hw5 solution. */
+
+static struct Passenger {
+    int id;
+    int from_floor;
+    int to_floor;
+    int in_elevator;
+    enum {WAITING, ENTERED, EXITED} state;
+} passengers[PASSENGERS];
+
+
 void elevator_check(int elevator) {
 	/*
   if(elevators[elevator].seqno == elevators[elevator].last_action_seqno) {
@@ -74,33 +86,39 @@ void elevator_close_door(int elevator) {
 	elevators[elevator].open=0;
 }
 
-void* start_elevator(void *arg) {
-	int elevator = (int)arg;
-	struct Elevator *e = &elevators[elevator];
-	e->last_action_seqno = 0;
-	e->seqno = 1;
-	e->passengers = 0;
-	e->trips = 0;
-	log(6,"Starting elevator %d\n", elevator);
+int floor_is_empty(void* arg) {
+    int current_floor = (int)arg;
 
-	e->floor = 0;//elevator % (FLOORS-1);
-	while(!stop) {
-		e->seqno++;
-		elevator_ready(elevator,e->floor,elevator_move_direction,elevator_open_door,elevator_close_door);
-		sched_yield();
-	}
+    log(0,"DEBUG: Checking floor_is_empty at floor %d.\n", current_floor);
+    // loop over every passenger and return 0 if any of the passengers are on this floor
+    for (int i = 0; i < PASSENGERS; i++) {
+        if (passengers[i].from_floor == current_floor) {
+            log(0,"DEBUG: floor_is_empty actually FALSE %d\n", current_floor);
+            return 0;
+        }
+    }
+    log(0,"DEBUG: floor_is_empty actually TRUE %d\n", current_floor);
+    // return 1 if this floor has no passengers
+    return 1;
+
 }
 
-/* This is an internal struct used by the enforcement system 
-	 - there is no access to this from hw5 solution. */
+void* start_elevator(void *arg) {
+    int elevator = (int)arg;
+    struct Elevator *e = &elevators[elevator];
+    e->last_action_seqno = 0;
+    e->seqno = 1;
+    e->passengers = 0;
+    e->trips = 0;
+    log(6,"Starting elevator %d\n", elevator);
 
-static struct Passenger {
-	int id;
-	int from_floor;
-	int to_floor;
-	int in_elevator;
-	enum {WAITING, ENTERED, EXITED} state;
-} passengers[PASSENGERS];
+    e->floor = 0;//elevator % (FLOORS-1);
+    while(!stop) {
+        e->seqno++;
+        elevator_ready(elevator,e->floor,elevator_move_direction,elevator_open_door,elevator_close_door, floor_is_empty);
+        sched_yield();
+    }
+}
 
 void passenger_enter(int passenger, int elevator) {
 	if(passengers[passenger].from_floor != elevators[elevator].floor) {

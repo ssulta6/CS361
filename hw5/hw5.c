@@ -84,7 +84,7 @@ void passenger_request(int passenger, int from_floor, int to_floor,
 
 void elevator_ready(int elevator, int at_floor, 
 										void(*move_direction)(int, int), 
-										void(*door_open)(int), void(*door_close)(int)) {
+										void(*door_open)(int), void(*door_close)(int), int(*floor_vacant)(int)){
         // log(0,"DEBUG elevator %d ready called!\n", elevator);
 	if(elevator!=0) return;
 	
@@ -93,21 +93,15 @@ void elevator_ready(int elevator, int at_floor,
 		door_open(elevator);
 		state=ELEVATOR_OPEN;
                 log(0,"DEBUG elevator arrived on floor %d\n", at_floor);
-                // TODO wait until passenger thread is done
-                // door barrier wait here
-                // if elevator not occupied, wait for it to fill up
-                //if (occupancy==0) {
-                //    pthread_mutex_unlock(&lock);
-                //   log(0,"DEBUG elevator waiting on door barrier at: %d\n", at_floor);
-                //    pthread_barrier_wait(&door_barrier);
-                //    log(0,"DEBUG elevator DONE waiting on door barrier at: %d\n", at_floor);
-                //} else {
-                //    pthread_mutex_unlock(&lock);
-                //}
-                pthread_mutex_unlock(&lock);
-                log(0,"DEBUG elevator waiting on door barrier at: %d\n", at_floor);
-                pthread_barrier_wait(&door_barrier);
-                log(0,"DEBUG elevator DONE waiting on door barrier at: %d\n", at_floor);
+                // only wait for passenger if we have one onboard or we're on a non-vacant floor
+                if (occupancy == 1 || floor_vacant(current_floor) == 0) {
+                    log(0,"DEBUG elevator waiting on door barrier at: %d with occupancy: %d\n", at_floor, occupancy);
+                    pthread_mutex_unlock(&lock);
+                    pthread_barrier_wait(&door_barrier);
+                    log(0,"DEBUG elevator DONE waiting on door barrier at: %d\n", at_floor);
+                } else {
+                    pthread_mutex_unlock(&lock);
+                }
 	}
 	else if(state == ELEVATOR_OPEN) {
                 log(0,"DEBUG elevator open at floor: %d, closing!\n", at_floor);
