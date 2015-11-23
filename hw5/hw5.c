@@ -3,7 +3,7 @@
 #include<pthread.h>
 
 pthread_mutex_t lock;
-
+pthread_cond_t cond;
 
 // TODO create a struct for elevator properties
 int current_floor;
@@ -21,7 +21,8 @@ void scheduler_init() {
 		occupancy=0;
 		state=ELEVATOR_CLOSED;
 		pthread_mutex_init(&lock,0);
-                pthread_barrier_init(&door_barrier, NULL, 2);
+                pthread_cond_init(&cond,0);
+                //pthread_barrier_init(&door_barrier, NULL, 2);
 }
 
 
@@ -40,14 +41,16 @@ void passenger_request(int passenger, int from_floor, int to_floor,
 			occupancy++;
 			waiting=0;
                         
-                        log(0,"DEBUG passenger: %d getting in elevator on floor %d\n", passenger, current_floor);
+                        // TODO something about putting cond_wait in while loops blablabla
+                        pthread_cond_signal(&cond);
+                        //log(0,"DEBUG passenger: %d getting in elevator on floor %d\n", passenger, current_floor);
 		        pthread_mutex_unlock(&lock);
                         // TODO now release door barrier here
-                        pthread_barrier_wait(&door_barrier);
-                        log(0,"DEBUG passenger: %d resetting door barrier\n", passenger);
+                        //pthread_barrier_wait(&door_barrier);
+                        //log(0,"DEBUG passenger: %d resetting door barrier\n", passenger);
                         // TODO reset the barrier
-                        pthread_barrier_destroy(&door_barrier);
-                        pthread_barrier_init(&door_barrier, NULL, 2);
+                        //pthread_barrier_destroy(&door_barrier);
+                        //pthread_barrier_init(&door_barrier, NULL, 2);
 		} else {
 		    pthread_mutex_unlock(&lock);
 		}
@@ -56,28 +59,33 @@ void passenger_request(int passenger, int from_floor, int to_floor,
 	// wait for the elevator at our destination floor, then get out
 	int riding=1;
 	while(riding) {
+                //log(0,"DEBUG passenger: %d riding in elevator on floor %d\n", passenger, current_floor);
 		pthread_mutex_lock(&lock);
 
 		if(current_floor == to_floor && state == ELEVATOR_OPEN) {
 			exit(passenger, 0);
 			occupancy--;
 			riding=0;
-                        log(0,"DEBUG passenger: %d getting off elevator on floor %d\n", passenger, current_floor);
+                        // TODO something about putting cond_wait in while loops blablabla
+                        pthread_cond_signal(&cond);
+                        //log(0,"DEBUG passenger: %d getting off elevator on floor %d\n", passenger, current_floor);
 		        pthread_mutex_unlock(&lock);
                         // TODO now release door barrier here
-                        pthread_barrier_wait(&door_barrier);
-                        log(0,"DEBUG passenger: %d resetting door barrier\n", passenger);
+                        //pthread_barrier_wait(&door_barrier);
+                        //log(0,"DEBUG passenger: %d resetting door barrier\n", passenger);
                         // TODO reset the barrier
-                        pthread_barrier_destroy(&door_barrier);
-                        pthread_barrier_init(&door_barrier, NULL, 2);
+                        //pthread_barrier_destroy(&door_barrier);
+                        //pthread_barrier_init(&door_barrier, NULL, 2);
 		} else {
+                        // TODO something about putting cond_wait in while loops blablabla
+                        pthread_cond_signal(&cond);
 		        pthread_mutex_unlock(&lock);
                         // TODO now release door barrier here
-                        pthread_barrier_wait(&door_barrier);
-                        log(0,"DEBUG passenger: %d resetting door barrier\n", passenger);
+                        //pthread_barrier_wait(&door_barrier);
+                        //log(0,"DEBUG passenger: %d resetting door barrier\n", passenger);
                         // TODO reset the barrier
-                        pthread_barrier_destroy(&door_barrier);
-                        pthread_barrier_init(&door_barrier, NULL, 2);
+                        //pthread_barrier_destroy(&door_barrier);
+                        //pthread_barrier_init(&door_barrier, NULL, 2);
                 }
 	}
 }
@@ -92,19 +100,20 @@ void elevator_ready(int elevator, int at_floor,
 	if(state == ELEVATOR_ARRIVED) {
 		door_open(elevator);
 		state=ELEVATOR_OPEN;
-                log(0,"DEBUG elevator arrived on floor %d\n", at_floor);
+                //log(0,"DEBUG elevator arrived on floor %d\n", at_floor);
                 // only wait for passenger if we have one onboard or we're on a non-vacant floor
                 if (occupancy == 1 || floor_vacant(at_floor) == 0) {
-                    log(0,"DEBUG elevator waiting on door barrier at: %d with occupancy: %d\n", at_floor, occupancy);
+                    //log(0,"DEBUG elevator waiting on door barrier at: %d with occupancy: %d\n", at_floor, occupancy);
+                    pthread_cond_wait(&cond, &lock);
                     pthread_mutex_unlock(&lock);
-                    pthread_barrier_wait(&door_barrier);
-                    log(0,"DEBUG elevator DONE waiting on door barrier at: %d\n", at_floor);
+                    //pthread_barrier_wait(&door_barrier);
+                    //log(0,"DEBUG elevator DONE waiting on door barrier at: %d\n", at_floor);
                 } else {
                     pthread_mutex_unlock(&lock);
                 }
 	}
 	else if(state == ELEVATOR_OPEN) {
-                log(0,"DEBUG elevator open at floor: %d, closing!\n", at_floor);
+                //log(0,"DEBUG elevator open at floor: %d, closing!\n", at_floor);
 		door_close(elevator);
 		state=ELEVATOR_CLOSED;
 	        pthread_mutex_unlock(&lock);
@@ -112,7 +121,7 @@ void elevator_ready(int elevator, int at_floor,
 	else {
 		if(at_floor==0 || at_floor==FLOORS-1) 
 			direction*=-1;
-                log(0,"DEBUG elevator at floor: %d, moving %d!\n", at_floor, direction);
+                //log(0,"DEBUG elevator at floor: %d, moving %d!\n", at_floor, direction);
 		move_direction(elevator,direction);
 		current_floor=at_floor+direction;
 		state=ELEVATOR_ARRIVED;

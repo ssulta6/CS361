@@ -89,15 +89,15 @@ void elevator_close_door(int elevator) {
 int floor_is_empty(void* arg) {
     int current_floor = (int)arg;
 
-    log(0,"DEBUG: Checking floor_is_empty at floor %d.\n", current_floor);
+    //log(0,"DEBUG: Checking floor_is_empty at floor %d.\n", current_floor);
     // loop over every remaining passenger and return 0 if any of the passengers are on this floor
     for (int i = 0; i < PASSENGERS; i++) {
         if (passengers[i].from_floor == current_floor && passengers[i].state != EXITED) {
-            log(0,"DEBUG: floor_is_empty actually FALSE %d\n", current_floor);
+            //log(0,"DEBUG: floor_is_empty actually FALSE %d\n", current_floor);
             return 0;
         }
     }
-    log(0,"DEBUG: floor_is_empty actually TRUE %d\n", current_floor);
+    //log(0,"DEBUG: floor_is_empty actually TRUE %d\n", current_floor);
     // return 1 if this floor has no passengers
     return 1;
 
