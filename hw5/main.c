@@ -178,9 +178,9 @@ void* start_passenger(void *arg) {
 	p->in_elevator = -1;
 	p->id = passenger;
 	int trips = TRIPS_PER_PASSENGER;
-        // choose a random elevator that this passenger will be assigned to
-        p->assigned_elevator = random()%ELEVATORS;
-	while(!stop && trips-- > 0) {
+        // more evenly spread out the passengers to elevators based on their ids
+        p->assigned_elevator = passengers[passenger].id%ELEVATORS;
+        while(!stop && trips-- > 0) {
 		p->to_floor = random() % FLOORS;
 		log(6,"Passenger %d requesting %d->%d\n",
 						passenger,p->from_floor,p->to_floor);
