@@ -21,19 +21,6 @@ static struct Elevator {
 	int trips;
 } elevators[ELEVATORS];
 
-/* This is an internal struct used by the enforcement system 
-   - there is no access to this from hw5 solution. */
-
-static struct Passenger {
-    int id;
-    int from_floor;
-    int to_floor;
-    int in_elevator;
-    int assigned_elevator;
-    enum {WAITING, ENTERED, EXITED} state;
-} passengers[PASSENGERS];
-
-
 void elevator_check(int elevator) {
 	/*
   if(elevators[elevator].seqno == elevators[elevator].last_action_seqno) {
@@ -87,37 +74,33 @@ void elevator_close_door(int elevator) {
 	elevators[elevator].open=0;
 }
 
-int floor_is_empty(int current_floor, int current_elevator) {
-    //log(0,"DEBUG: Checking floor_is_empty at floor %d.\n", current_floor);
-    // loop over every remaining passenger (assigned to this elevator) and return 0 if any of the them are on this floor
-    for (int i = 0; i < PASSENGERS; i++) {
-        if (passengers[i].from_floor == current_floor && passengers[i].state != EXITED && passengers[i].assigned_elevator == current_elevator) {
-            //log(0,"DEBUG: floor_is_empty actually FALSE %d\n", current_floor);
-            return 0;
-        }
-    }
-    //log(0,"DEBUG: floor_is_empty actually TRUE %d\n", current_floor);
-    // return 1 if this floor has no passengers
-    return 1;
-
-}
-
 void* start_elevator(void *arg) {
-    int elevator = (int)arg;
-    struct Elevator *e = &elevators[elevator];
-    e->last_action_seqno = 0;
-    e->seqno = 1;
-    e->passengers = 0;
-    e->trips = 0;
-    log(6,"Starting elevator %d\n", elevator);
+	int elevator = (int)arg;
+	struct Elevator *e = &elevators[elevator];
+	e->last_action_seqno = 0;
+	e->seqno = 1;
+	e->passengers = 0;
+	e->trips = 0;
+	log(6,"Starting elevator %d\n", elevator);
 
-    e->floor = 0;//elevator % (FLOORS-1);
-    while(!stop) {
-        e->seqno++;
-        elevator_ready(elevator,e->floor,elevator_move_direction,elevator_open_door,elevator_close_door, floor_is_empty);
-        sched_yield();
-    }
+	e->floor = 0;//elevator % (FLOORS-1);
+	while(!stop) {
+		e->seqno++;
+		elevator_ready(elevator,e->floor,elevator_move_direction,elevator_open_door,elevator_close_door);
+		sched_yield();
+	}
 }
+
+/* This is an internal struct used by the enforcement system 
+	 - there is no access to this from hw5 solution. */
+
+static struct Passenger {
+	int id;
+	int from_floor;
+	int to_floor;
+	int in_elevator;
+	enum {WAITING, ENTERED, EXITED} state;
+} passengers[PASSENGERS];
 
 void passenger_enter(int passenger, int elevator) {
 	if(passengers[passenger].from_floor != elevators[elevator].floor) {
@@ -178,9 +161,7 @@ void* start_passenger(void *arg) {
 	p->in_elevator = -1;
 	p->id = passenger;
 	int trips = TRIPS_PER_PASSENGER;
-        // more evenly spread out the passengers to elevators based on their ids
-        p->assigned_elevator = passengers[passenger].id%ELEVATORS;
-        while(!stop && trips-- > 0) {
+	while(!stop && trips-- > 0) {
 		p->to_floor = random() % FLOORS;
 		log(6,"Passenger %d requesting %d->%d\n",
 						passenger,p->from_floor,p->to_floor);
@@ -188,7 +169,7 @@ void* start_passenger(void *arg) {
 		struct timeval before;
 		gettimeofday(&before,0);
 		passengers[passenger].state=WAITING;
-                passenger_request(passenger, p->assigned_elevator,p->from_floor, p->to_floor, passenger_enter, passenger_exit);
+		passenger_request(passenger, p->from_floor, p->to_floor, passenger_enter, passenger_exit);
 		struct timeval after;
 		gettimeofday(&after,0);
 		int ms = (after.tv_sec - before.tv_sec)*1000 + (after.tv_usec - before.tv_usec)/1000;
