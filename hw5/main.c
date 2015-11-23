@@ -29,6 +29,7 @@ static struct Passenger {
     int from_floor;
     int to_floor;
     int in_elevator;
+    int assigned_elevator;
     enum {WAITING, ENTERED, EXITED} state;
 } passengers[PASSENGERS];
 
@@ -86,13 +87,11 @@ void elevator_close_door(int elevator) {
 	elevators[elevator].open=0;
 }
 
-int floor_is_empty(void* arg) {
-    int current_floor = (int)arg;
-
+int floor_is_empty(int current_floor, int current_elevator) {
     //log(0,"DEBUG: Checking floor_is_empty at floor %d.\n", current_floor);
-    // loop over every remaining passenger and return 0 if any of the passengers are on this floor
+    // loop over every remaining passenger (assigned to this elevator) and return 0 if any of the them are on this floor
     for (int i = 0; i < PASSENGERS; i++) {
-        if (passengers[i].from_floor == current_floor && passengers[i].state != EXITED) {
+        if (passengers[i].from_floor == current_floor && passengers[i].state != EXITED && passengers[i].assigned_elevator == current_elevator) {
             //log(0,"DEBUG: floor_is_empty actually FALSE %d\n", current_floor);
             return 0;
         }
@@ -179,6 +178,8 @@ void* start_passenger(void *arg) {
 	p->in_elevator = -1;
 	p->id = passenger;
 	int trips = TRIPS_PER_PASSENGER;
+        // choose a random elevator that this passenger will be assigned to
+        p->assigned_elevator = random()%ELEVATORS;
 	while(!stop && trips-- > 0) {
 		p->to_floor = random() % FLOORS;
 		log(6,"Passenger %d requesting %d->%d\n",
@@ -187,7 +188,7 @@ void* start_passenger(void *arg) {
 		struct timeval before;
 		gettimeofday(&before,0);
 		passengers[passenger].state=WAITING;
-		passenger_request(passenger, p->from_floor, p->to_floor, passenger_enter, passenger_exit);
+                passenger_request(passenger, p->assigned_elevator,p->from_floor, p->to_floor, passenger_enter, passenger_exit);
 		struct timeval after;
 		gettimeofday(&after,0);
 		int ms = (after.tv_sec - before.tv_sec)*1000 + (after.tv_usec - before.tv_usec)/1000;
