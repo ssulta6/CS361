@@ -90,11 +90,10 @@ void passenger_request(int passenger, int from_floor, int to_floor,
             passengers[passenger].state = ENTERED;
 
             pthread_cond_signal(&elevators[elevator].cond);
-            pthread_mutex_unlock(&elevators[elevator].lock);
-        } else {
-            pthread_mutex_unlock(&elevators[elevator].lock);
-            sched_yield();
         }
+        
+        sched_yield();
+        pthread_mutex_unlock(&elevators[elevator].lock);
     }
     
 
@@ -115,12 +114,10 @@ void passenger_request(int passenger, int from_floor, int to_floor,
             passengers[passenger].state = EXITED;
             
             pthread_cond_signal(&elevators[elevator].cond);
-            pthread_mutex_unlock(&elevators[elevator].lock);
-        } else {
-            //pthread_cond_signal(&elevators[elevator].cond);
-            pthread_mutex_unlock(&elevators[elevator].lock);
         }
-    }
+        
+        pthread_mutex_unlock(&elevators[elevator].lock);
+    }  // end while riding
 }  // end passenger_request
 
 void elevator_ready(int elevator, int at_floor, 
@@ -138,7 +135,7 @@ void elevator_ready(int elevator, int at_floor,
 
     // if elevator arrived, then open door and wait for passenger
     if(elevators[elevator].state == ELEVATOR_ARRIVED) {
-        // TODO only open door if someone could get on or off
+        // only open door if someone could get on or off
         // this only happens when passenger onboard wants to exit or when elevator is vacant and someone on this floor can enter
 
         int wants_to_exit = 0;
@@ -157,17 +154,14 @@ void elevator_ready(int elevator, int at_floor,
             elevators[elevator].state=ELEVATOR_OPEN;
             // wait for passenger to leave or enter
             pthread_cond_wait(&elevators[elevator].cond, &elevators[elevator].lock);
-            pthread_mutex_unlock(&elevators[elevator].lock);
         } else {
             // close door and dont wait
             elevators[elevator].state=ELEVATOR_CLOSED;
-            pthread_mutex_unlock(&elevators[elevator].lock);
         }
     } // else if elevator open, just close it
     else if(elevators[elevator].state == ELEVATOR_OPEN) {
         door_close(elevator);
         elevators[elevator].state=ELEVATOR_CLOSED;
-        pthread_mutex_unlock(&elevators[elevator].lock);
     } // else if elevator closed, then move one floor and set to ARRIVED
     else {
         if(at_floor==0 || at_floor==FLOORS-1) 
@@ -175,6 +169,7 @@ void elevator_ready(int elevator, int at_floor,
         move_direction(elevator,elevators[elevator].direction);
         elevators[elevator].current_floor=at_floor+elevators[elevator].direction;
         elevators[elevator].state=ELEVATOR_ARRIVED;
-        pthread_mutex_unlock(&elevators[elevator].lock);
     }
+    
+    pthread_mutex_unlock(&elevators[elevator].lock);
 }
